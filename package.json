@@ -1,0 +1,24 @@
+{
+  "name": "@apytel/youtrack-cli",
+  "version": "0.0.0",
+  "description": "Thin YouTrack CLI for humans and AI agents — one dependency, compact output",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "youtrack",
+    "cli",
+    "jetbrains",
+    "issue-tracker",
+    "agent"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

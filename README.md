@@ -11,7 +11,8 @@ A thin YouTrack CLI built for AI agents and humans at the same time.
 | | this | typical alternative |
 |---|---|---|
 | Runtime dependencies | 1 | dozens |
-| Token storage | OS keychain, or `YT_TOKEN` — **never written to disk** | keychain with a plaintext file fallback |
+| Login | browser, with a client the CLI registers for itself | paste a token |
+| Credential storage | OS keychain, or `YT_TOKEN` — **never written to disk** | keychain with a plaintext file fallback |
 | `runAs` (attribute work to another user) | yes | no |
 | Milestones | yes | no |
 | Listing 10 issues with their state | ~380 B | ~2–21 KB |
@@ -23,7 +24,7 @@ reads and what an agent parses.
 ## Planned interface
 
 ```
-yt login                                          store a token in the OS keychain
+yt login                                          browser OAuth; credential to the keychain
 yt ls [query] [--fields F] [--json]               list issues with their state
 yt view <id> [--comments]
 yt new <project> <summary> [-d description]
@@ -53,6 +54,8 @@ instance without applying it.
   the command language instead of typed subcommands
 - [ADR-0002](docs/adr/0002-token-never-touches-disk.md) — why there is no
   fallback file for the token
+- [ADR-0003](docs/adr/0003-browser-oauth-with-self-registered-client.md) — why
+  the CLI registers its own OAuth client instead of shipping one
 
 ## License
 

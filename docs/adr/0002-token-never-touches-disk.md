@@ -21,12 +21,16 @@ constraint, not an excuse; it just does not justify writing the secret out.
 Two sources, and only two:
 
 1. The OS keychain, via `@napi-rs/keyring` — macOS Keychain, Windows Credential
-   Manager, libsecret on Linux. The only thing `yt login` writes to.
+   Manager, libsecret on Linux. The only thing `yt login` writes to. Under
+   ADR-0003 what it holds is an OAuth refresh token rather than a permanent one;
+   the rule is the same either way.
 2. `YT_TOKEN` in the environment, read-only.
 
-The tool never writes a token to a file, encrypted or otherwise. Where no keychain
-exists, the caller exports `YT_TOKEN`; a secret the user deliberately exported is
-theirs to manage, not ours to persist.
+The tool never writes a credential to a file, encrypted or otherwise. Where no
+keychain exists, the caller exports `YT_TOKEN`; a secret the user deliberately
+exported is theirs to manage, not ours to persist. Access tokens and the one-time
+bootstrap token of ADR-0003 live in memory for the length of a single process and
+are never persisted at all.
 
 The instance URL is not a secret and lives in a plain config file, overridable by
 `YT_URL`.

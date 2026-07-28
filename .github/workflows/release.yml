@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC) and the provenance attestation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      # Trusted publishing needs npm >= 11.5.1; the bundled npm is older.
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - run: npm test
+      - name: Check the tag matches package.json
+        run: |
+          test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      # No NODE_AUTH_TOKEN: the OIDC token is exchanged for a short-lived
+      # publish credential. If trusted publishing is unavailable for this
+      # package, set NPM_TOKEN (granular, scoped to this package) and add
+      # `env: NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` here — provenance
+      # still works, as publishConfig.provenance is set.
+      - run: npm publish

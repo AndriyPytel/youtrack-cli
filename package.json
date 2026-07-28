@@ -4,6 +4,20 @@
   "description": "Thin YouTrack CLI for humans and AI agents — one dependency, compact output",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apytel/youtrack-cli.git"
+  },
+  "bin": {
+    "yt": "bin/yt.js",
+    "youtrack": "bin/yt.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=18"
   },
@@ -19,6 +33,10 @@
     "provenance": true
   },
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test",
+    "test:live": "node scripts/live-smoke.js"
+  },
+  "dependencies": {
+    "@napi-rs/keyring": "^1.3.0"
   }
 }

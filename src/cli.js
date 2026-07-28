@@ -1,0 +1,71 @@
+import { ls, view, comment, create, edit, attach, cmd } from './commands/issues.js'
+import { art } from './commands/art.js'
+import { state, board } from './commands/pipeline.js'
+import { login, logout } from './commands/auth.js'
+import { print } from './render.js'
+import { CliError, EXIT } from './errors.js'
+
+const HELP = `yt — a thin YouTrack CLI
+
+  yt login [--token] [--url URL] [--status]   browser OAuth; credential to the keychain
+  yt logout                                   clear the stored credential
+  yt ls [query] [--fields F] [--json]         list issues with their state
+  yt view <id> [--comments]
+  yt new <project> <summary> [-d description]
+  yt edit <id> [-s summary] [-d description]
+  yt cmd <id...> "<command>" [--as user] [--dry-run]    every other mutation
+  yt comment <id> <text>
+  yt attach <id> <file...>
+  yt art ls|view|new|edit                     knowledge base
+  yt board ls|new <project> <name> [--columns "A,B,C"]
+  yt state ls|add <project> <name>
+
+  YT_URL, YT_TOKEN override the config file and the keychain.
+  yt cmd --help  for the command language.
+
+Exit codes: 0 ok, 1 auth, 2 not found, 3 command rejected.`
+
+const commands = {
+  ls,
+  view,
+  comment,
+  new: create,
+  edit,
+  attach,
+  cmd,
+  art,
+  board,
+  state,
+  login,
+  logout,
+  help: async () => print(HELP),
+}
+
+export async function run(argv) {
+  const [name, ...rest] = argv
+  if (!name || name === '--help' || name === '-h') {
+    print(HELP)
+    return EXIT.OK
+  }
+  if (name === '--version' || name === '-v') {
+    const { version } = await import('node:module').then((module) =>
+      module.createRequire(import.meta.url)('../package.json'),
+    )
+    print(version)
+    return EXIT.OK
+  }
+
+  const command = commands[name]
+  if (!command) {
+    process.stderr.write(`Unknown command: ${name}. Try \`yt help\`.\n`)
+    return EXIT.USAGE
+  }
+
+  try {
+    await command(rest)
+    return EXIT.OK
+  } catch (error) {
+    process.stderr.write(`${error.message}\n`)
+    return error instanceof CliError ? error.code : EXIT.USAGE
+  }
+}

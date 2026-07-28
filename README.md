@@ -2,9 +2,27 @@
 
 A thin YouTrack CLI built for AI agents and humans at the same time.
 
-> **Status: design complete, not implemented.** The interface and the decisions
-> behind it are settled and written down; there is no working code yet. See the
-> open issues.
+> **Status: implemented, unreleased.** Every command below works against a fake
+> YouTrack in CI; the OAuth bootstrap has not yet been exercised against a live
+> Hub. See the open issues.
+
+## Getting started
+
+```sh
+npm install -g @apytel/youtrack-cli
+yt login                    # browser OAuth; the credential goes to the OS keychain
+yt ls
+```
+
+For CI, containers and headless Linux, skip `yt login` entirely:
+
+```sh
+export YT_URL=https://example.youtrack.cloud
+export YT_TOKEN=perm:…
+```
+
+`yt login --status` says which of the two is in use. `yt login --token` stores a
+permanent token in the keychain instead of running the browser flow.
 
 ## Why another one
 
@@ -21,7 +39,7 @@ The size difference is not compression — it is asking the API for the right
 fields and printing them without box drawing. The same output is what a human
 reads and what an agent parses.
 
-## Planned interface
+## Interface
 
 ```
 yt login                                          browser OAuth; credential to the keychain

@@ -1,6 +1,6 @@
 {
   "client_id": "https://andriypytel.github.io/youtrack-cli/client.json",
-  "client_name": "yt-cli",
+  "client_name": "youtrack-cli",
   "client_uri": "https://github.com/AndriyPytel/youtrack-cli",
   "application_type": "native",
   "redirect_uris": ["http://127.0.0.1:8637/callback"],

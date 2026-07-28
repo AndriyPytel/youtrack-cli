@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { startFakeYouTrack } from './fake-youtrack.js'
-import { authorize, bootstrap } from '../src/oauth.js'
+import { authorize, discoverScope } from '../src/oauth.js'
 import { EXIT } from '../src/errors.js'
 
 let server
@@ -97,16 +97,20 @@ test('a refusal in the browser is reported, not swallowed', async () => {
   assert.match(error.message, /user said no/)
 })
 
-test('bootstrap registers a loopback client and discovers the YouTrack service id', async () => {
-  const registered = await bootstrap({ url: server.url, token: 'test-token', redirectPort: 8637 })
-  assert.equal(registered.clientId, 'client-1')
-  assert.equal(registered.scope, 'svc-yt', 'the YouTrack service id is the OAuth scope')
-  assert.deepEqual(server.state.registered.redirectUris, ['http://127.0.0.1:8637/callback'])
+test('the scope is discovered anonymously, with no credential of any kind', async () => {
+  server.requests.length = 0
+  assert.equal(await discoverScope(server.url), 'svc-yt')
+  assert.ok(
+    server.requests.every((entry) => !entry.authorization),
+    'discovery must not depend on being logged in',
+  )
 })
 
-test('an account that may not register a service gets an explanation, not a stack trace', async () => {
-  const error = await bootstrap({ url: server.url, token: 'no-admin', redirectPort: 8637 }).catch((failure) => failure)
+test('an instance with CIMD disabled points at the token fallback, not a stack trace', async () => {
+  server.state.cimd = false
+  const error = await discoverScope(server.url).catch((failure) => failure)
+  server.state.cimd = true
   assert.equal(error.code, EXIT.AUTH)
-  assert.match(error.message, /may not register an OAuth client/)
+  assert.match(error.message, /CIMD/)
   assert.match(error.message, /YT_TOKEN/)
 })

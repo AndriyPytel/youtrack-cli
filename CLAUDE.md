@@ -20,9 +20,10 @@ Repository artifacts — code, comments, docs, commit messages, issues — are i
 - **Mutations go through YouTrack's command language** (`POST /api/commands`), not
   through typed subcommands. See ADR-0001.
 - **The token never touches disk.** See ADR-0002.
-- **Browser OAuth is the normal login path**, with a client the CLI registers for
-  itself on first contact with an instance. A permanent token is the one-time
-  bootstrap and the fallback for CI and headless environments. See ADR-0003.
+- **There is one OAuth flow and it asks for nothing.** The `client_id` is the URL
+  of a metadata document we host (CIMD), the scope is read from the instance's
+  public protected resource metadata. A permanent token is the fallback for CI,
+  headless environments and instances with CIMD switched off. See ADR-0004.
 - **One output path, not two.** The default rendering is compact enough for an
   agent and readable enough for a human; colour is enabled only when
   `process.stdout.isTTY`. `--json` returns YouTrack's raw response, unmodified.

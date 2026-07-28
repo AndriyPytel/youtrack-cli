@@ -1,6 +1,6 @@
-import { instanceConfig, resolveUrl } from './config.js'
+import { resolveUrl } from './config.js'
 import { readCredential, writeCredential } from './keychain.js'
-import { refreshTokens } from './oauth.js'
+import { CLIENT_ID, refreshTokens } from './oauth.js'
 import { withLock } from './lock.js'
 import { createApi } from './api.js'
 import { CliError, EXIT } from './errors.js'
@@ -29,7 +29,6 @@ export async function resolveCredential(url) {
  * @param {{read: Function, write: Function}} [store] credential store — swapped in tests
  */
 export function oauthTokens(url, store = { read: readCredential, write: writeCredential }) {
-  const { clientId } = instanceConfig(url)
   let inMemory = null
 
   // The access token is kept in the keychain, not in memory only: concurrent
@@ -53,7 +52,7 @@ export function oauthTokens(url, store = { read: readCredential, write: writeCre
 
       let tokens
       try {
-        tokens = await refreshTokens({ url, clientId, refreshToken: stored.refreshToken })
+        tokens = await refreshTokens({ url, clientId: CLIENT_ID, refreshToken: stored.refreshToken })
       } catch (error) {
         throw new CliError(
           `Your session is no longer valid (${error.message}). Run \`yt login\` again.`,

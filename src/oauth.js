@@ -5,6 +5,15 @@ import { CliError, EXIT } from './errors.js'
 
 const base64url = (buffer) => buffer.toString('base64url')
 
+/**
+ * CIMD (ADR-0004): the client id is the URL of our own metadata document, so
+ * there is nothing to register and nothing to configure per instance.
+ */
+export const CLIENT_ID = 'https://andriypytel.github.io/youtrack-cli/client.json'
+
+/** Fixed because the CIMD document declares this exact redirect URI. */
+export const REDIRECT_PORT = 8637
+
 export function pkce() {
   const verifier = base64url(randomBytes(32))
   return { verifier, challenge: base64url(createHash('sha256').update(verifier).digest()) }
@@ -15,7 +24,7 @@ export function canOpenBrowser() {
   return Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY)
 }
 
-function openBrowser(url) {
+export function openBrowser(url) {
   const [command, args] =
     process.platform === 'darwin'
       ? ['open', [url]]
@@ -126,57 +135,29 @@ export async function authorize({ url, clientId, scope, port = 0, timeoutMs = 12
   })
 }
 
+const fetchJson = (target) =>
+  fetch(target, { headers: { Accept: 'application/json' } })
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null)
+
 /**
- * One authenticated call is the only way in: Hub has no dynamic client
- * registration (ADR-0003). Registers a public PKCE client and finds the
- * YouTrack service id used as the OAuth scope.
+ * The OAuth scope is the instance's YouTrack service id, published anonymously
+ * in the protected resource metadata. Both documents are unauthenticated.
  */
-export async function bootstrap({ url, token, redirectPort }) {
-  const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+export async function discoverScope(url) {
+  const [resource, configuration] = await Promise.all([
+    fetchJson(`${url}/.well-known/oauth-protected-resource/mcp`),
+    fetchJson(`${url}/hub/api/rest/oauth2/.well-known/openid-configuration`),
+  ])
 
-  const services = await fetch(
-    `${url}/hub/api/rest/services?fields=id,name,applicationName&$top=1000`,
-    { headers },
-  ).then(async (response) => {
-    if (response.status === 401 || response.status === 403) {
-      throw new CliError('That token was rejected by Hub. Check it and try again.', EXIT.AUTH)
-    }
-    if (!response.ok) throw new CliError(`Hub ${response.status} while listing services.`, EXIT.AUTH)
-    return response.json()
-  })
-
-  const youtrack = (services.services || services).find?.(
-    (service) => service.applicationName === 'YouTrack' || service.name === 'YouTrack',
-  )
-  if (!youtrack) {
-    throw new CliError('Could not find the YouTrack service on this Hub — export YT_TOKEN instead.', EXIT.AUTH)
-  }
-
-  const registration = await fetch(`${url}/hub/api/rest/services?fields=id,name,redirectUris`, {
-    method: 'POST',
-    headers: { ...headers, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: `yt-cli (${process.env.USER || process.env.USERNAME || 'cli'})`,
-      applicationName: 'yt-cli',
-      homeUrl: 'https://github.com/apytel/youtrack-cli',
-      redirectUris: [`http://127.0.0.1:${redirectPort}/callback`],
-    }),
-  })
-
-  if (registration.status === 403) {
+  if (!configuration?.client_id_metadata_document_supported || !resource?.scopes_supported?.length) {
     throw new CliError(
-      'This account may not register an OAuth client in Hub (403). ' +
-        'Ask an administrator, or export YT_TOKEN=<permanent token> and use that instead.',
-      EXIT.AUTH,
-    )
-  }
-  if (!registration.ok) {
-    throw new CliError(
-      `Could not register the OAuth client (Hub ${registration.status}). Export YT_TOKEN to continue.`,
+      `${url} does not allow automatic OAuth client registration via CIMD.\n` +
+        'An administrator can enable it under Access Management > OAuth Clients.\n' +
+        'Until then, run `yt login --token` or export YT_TOKEN=<permanent token>.',
       EXIT.AUTH,
     )
   }
 
-  const client = await registration.json()
-  return { clientId: client.id, scope: youtrack.id, redirectPort }
+  return resource.scopes_supported.join(' ')
 }

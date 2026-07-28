@@ -24,12 +24,16 @@ export YT_TOKEN=perm:…
 `yt login --status` says which of the two is in use. `yt login --token` stores a
 permanent token in the keychain instead of running the browser flow.
 
+The browser flow needs **Allow automatic OAuth client registration via CIMD**
+enabled on the instance — Access Management > OAuth Clients. It is off by
+default. Without it `yt login` explains the switch and falls back to a token.
+
 ## Why another one
 
 | | this | typical alternative |
 |---|---|---|
 | Runtime dependencies | 1 | dozens |
-| Login | browser, with a client the CLI registers for itself | paste a token |
+| Login | browser, nothing to paste and nothing to register | paste a token |
 | Credential storage | OS keychain, or `YT_TOKEN` — **never written to disk** | keychain with a plaintext file fallback |
 | `runAs` (attribute work to another user) | yes | no |
 | Milestones | yes | no |
@@ -73,7 +77,9 @@ instance without applying it.
 - [ADR-0002](docs/adr/0002-token-never-touches-disk.md) — why there is no
   fallback file for the token
 - [ADR-0003](docs/adr/0003-browser-oauth-with-self-registered-client.md) — why
-  the CLI registers its own OAuth client instead of shipping one
+  the CLI used to register its own OAuth client (superseded)
+- [ADR-0004](docs/adr/0004-cimd-client-id.md) — why the client id is a URL we
+  host, and how that removed the token bootstrap
 
 ## License
 

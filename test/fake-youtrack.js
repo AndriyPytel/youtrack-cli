@@ -59,13 +59,23 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     counter: 100,
     refreshCount: 0,
     accepted: new Set([token, ...accessTokens]),
+    cimd: true,
+    scopes: ['svc-yt'],
   }
 
   const server = createServer(async (request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1')
     const path = url.pathname
     const body = await readBody(request)
-    requests.push({ method: request.method, url: request.url, path, body })
+    requests.push({ method: request.method, url: request.url, path, body, authorization: request.headers.authorization })
+
+    if (path === '/.well-known/oauth-protected-resource/mcp') {
+      return json(response, 200, { resource: `${url.origin}/mcp`, scopes_supported: state.scopes })
+    }
+
+    if (path === '/hub/api/rest/oauth2/.well-known/openid-configuration') {
+      return json(response, 200, { client_id_metadata_document_supported: state.cimd })
+    }
 
     if (path === '/hub/api/rest/oauth2/token') {
       state.refreshCount += 1

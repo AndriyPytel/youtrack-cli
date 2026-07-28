@@ -1,6 +1,9 @@
 # ADR-0003: Browser OAuth, with a client the CLI registers for itself
 
-**Status:** accepted — 2026-07-28
+**Status:** superseded by [ADR-0004](0004-cimd-client-id.md) — 2026-07-28. The
+measurements below were taken with *Allow automatic OAuth client registration via
+CIMD* switched off, which is the default; enabling it removes the bootstrap
+entirely.
 
 ## Context
 

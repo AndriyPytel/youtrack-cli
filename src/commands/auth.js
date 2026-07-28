@@ -1,13 +1,11 @@
 import { createInterface } from 'node:readline/promises'
 import { parse } from '../args.js'
 import { print, dim } from '../render.js'
-import { instanceConfig, normalizeUrl, readConfig, saveInstanceConfig, writeConfig } from '../config.js'
+import { normalizeUrl, readConfig, writeConfig } from '../config.js'
 import { deleteCredential, writeCredential } from '../keychain.js'
 import { resolveCredential } from '../session.js'
-import { authorize, bootstrap, canOpenBrowser } from '../oauth.js'
+import { authorize, canOpenBrowser, CLIENT_ID, discoverScope, openBrowser, REDIRECT_PORT } from '../oauth.js'
 import { CliError, EXIT } from '../errors.js'
-
-const DEFAULT_REDIRECT_PORT = 8637
 
 async function ask(question, { secret = false } = {}) {
   const rl = createInterface({ input: process.stdin, output: process.stderr, terminal: process.stdin.isTTY === true })
@@ -17,6 +15,19 @@ async function ask(question, { secret = false } = {}) {
   rl.close()
   if (secret) process.stderr.write('\n')
   return value
+}
+
+async function askToken(url) {
+  const page = `${url}/users/me?tab=account-security`
+  if (canOpenBrowser()) {
+    process.stderr.write(`Opening ${page} — create a token there with the YouTrack scope.\n`)
+    openBrowser(page)
+  } else {
+    process.stderr.write(`Create a token at ${page}\n`)
+  }
+  const token = await ask('Permanent token: ', { secret: true })
+  if (!token) throw new CliError('No token entered.')
+  return token
 }
 
 async function whoami(url, token) {
@@ -33,9 +44,6 @@ export async function login(argv) {
   const { values } = parse(argv, {
     url: { type: 'string' },
     token: { type: 'boolean' },
-    'client-id': { type: 'string' },
-    scope: { type: 'string' },
-    port: { type: 'string' },
     status: { type: 'boolean' },
   })
 
@@ -55,44 +63,15 @@ export async function login(argv) {
     writeConfig(config)
   }
 
-  const stored = instanceConfig(url)
-  const port = Number(values.port ?? stored.redirectPort ?? 0)
-
-  if (values.token || (!canOpenBrowser() && !values['client-id'] && !stored.clientId)) {
-    const token = await ask('Permanent token: ', { secret: true })
-    if (!token) throw new CliError('No token entered.')
+  if (values.token || !canOpenBrowser()) {
+    const token = await askToken(url)
     const user = await whoami(url, token)
     await writeCredential(url, { token })
-    saveInstanceConfig(url, {})
     return print(`Logged in to ${url} as ${user.login} ${dim('(token in the OS keychain)')}`)
   }
 
-  let clientId = values['client-id'] || stored.clientId
-  let scope = values.scope || stored.scope
-  let redirectPort = port
-
-  if (!clientId) {
-    process.stderr.write(
-      `First login to ${url}. A permanent token is needed once, to register this CLI as an OAuth client.\n` +
-        'It is used for that single call and never stored.\n',
-    )
-    const token = await ask('Permanent token: ', { secret: true })
-    if (!token) throw new CliError('No token entered.')
-    redirectPort = port || DEFAULT_REDIRECT_PORT
-    const registered = await bootstrap({ url, token, redirectPort })
-    clientId = registered.clientId
-    scope = registered.scope
-    saveInstanceConfig(url, { clientId, scope, redirectPort })
-  } else if (!scope) {
-    throw new CliError(
-      'No OAuth scope recorded for this instance. Pass --scope <YouTrack service id>, ' +
-        'or run `yt login` without --client-id to bootstrap one.',
-    )
-  } else if (values['client-id']) {
-    saveInstanceConfig(url, { clientId, scope, redirectPort })
-  }
-
-  const tokens = await authorize({ url, clientId, scope, port: redirectPort })
+  const scope = await discoverScope(url)
+  const tokens = await authorize({ url, clientId: CLIENT_ID, scope, port: REDIRECT_PORT })
   if (!tokens.refresh_token) {
     throw new CliError('YouTrack returned no refresh token. Register the client with offline access.', EXIT.AUTH)
   }

@@ -31,17 +31,3 @@ export function resolveUrl() {
   if (!url) throw new CliError('No YouTrack instance configured. Set YT_URL or run `yt login`.')
   return normalizeUrl(url)
 }
-
-/** Per-instance OAuth client details, keyed by instance URL. */
-export function instanceConfig(url) {
-  return readConfig().instances?.[normalizeUrl(url)] || {}
-}
-
-export function saveInstanceConfig(url, patch) {
-  const config = readConfig()
-  const key = normalizeUrl(url)
-  config.url ??= key
-  config.instances ??= {}
-  config.instances[key] = { ...config.instances[key], ...patch }
-  writeConfig(config)
-}

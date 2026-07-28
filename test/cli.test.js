@@ -178,7 +178,7 @@ test('yt cmd --help carries worked examples', async () => {
 })
 
 test('yt art lists, views, creates and edits', async () => {
-  assert.match((await yt(['art', 'ls'])).out, /DEMO-A-1\s+-\s+Runbook/)
+  assert.match((await yt(['art', 'ls'])).out, /DEMO-A-1\s+Runbook/)
   assert.equal((await yt(['art', 'view', 'DEMO-A-1'])).out, '# Runbook\nhow to ship\n')
 
   const created = await yt(['art', 'new', 'DEMO', 'Guide', '-c', 'text body'])
@@ -186,7 +186,61 @@ test('yt art lists, views, creates and edits', async () => {
 
   await yt(['art', 'edit', 'DEMO-A-1', '-c', 'replaced'])
   assert.equal(server.state.articles['DEMO-A-1'].content, 'replaced')
-  assert.equal((await yt(['art', 'ls', '--project', 'NOPE', '--json'])).out.trim(), '[]')
+  assert.equal((await yt(['art', 'ls', '--project', 'NOPE'])).code, 2)
+})
+
+test('yt art ls indents children under their parent', async () => {
+  const { out } = await yt(['art', 'ls', '--project', 'DEMO'])
+  assert.match(out, /DEMO-A-1\s+Runbook\nDEMO-A-2\s+ {2}Deploying/)
+  assert.ok(!out.includes('OPS-A-1'))
+})
+
+test('yt art ls --project asks the per-project endpoint, not a global list', async () => {
+  const before = server.requests.length
+  await yt(['art', 'ls', '--project', 'OPS'])
+  const paths = server.requests.slice(before).map((request) => request.path)
+  assert.ok(paths.includes('/api/admin/projects/0-1/articles'))
+  assert.ok(!paths.includes('/api/articles'))
+})
+
+test('yt art ls --grep matches titles case-insensitively, and misses quietly', async () => {
+  const hit = await yt(['art', 'ls', '--grep', 'EXPORT'])
+  assert.equal(hit.code, 0)
+  assert.match(hit.out, /OPS-A-1\s+Export pipeline/)
+  assert.ok(!hit.out.includes('Runbook'))
+
+  const miss = await yt(['art', 'ls', '--grep', 'nothing matches this'])
+  assert.equal(miss.code, 0)
+  assert.equal(miss.out, '')
+})
+
+test('yt new and yt edit read the description from a file or stdin', async () => {
+  const draft = join(configDir, 'draft.md')
+  writeFileSync(draft, '# Draft\ntwo lines\n')
+
+  const fromFile = await yt(['new', 'DEMO', 'From file', '-f', draft])
+  assert.equal(server.state.issues[fromFile.out.trim()].description, '# Draft\ntwo lines\n')
+
+  const fromStdin = await yt(['new', 'DEMO', 'From stdin'], { input: 'piped body' })
+  assert.equal(server.state.issues[fromStdin.out.trim()].description, 'piped body')
+
+  await yt(['edit', 'DEMO-4', '-f', draft])
+  assert.equal(server.state.issues['DEMO-4'].description, '# Draft\ntwo lines\n')
+
+  await yt(['edit', 'DEMO-4'], { input: 'edited body' })
+  assert.equal(server.state.issues['DEMO-4'].description, 'edited body')
+})
+
+test('yt edit -s alone does not consume stdin, and an empty edit still fails', async () => {
+  const untouched = server.state.issues['DEMO-4'].description
+  const { code } = await yt(['edit', 'DEMO-4', '-s', 'Renamed'], { input: 'must be ignored' })
+  assert.equal(code, 0)
+  assert.equal(server.state.issues['DEMO-4'].summary, 'Renamed')
+  assert.equal(server.state.issues['DEMO-4'].description, untouched)
+
+  const empty = await yt(['edit', 'DEMO-4'])
+  assert.equal(empty.code, 4)
+  assert.match(empty.err, /Nothing to change/)
 })
 
 test('yt art new --parent resolves the readable id to the internal one', async () => {

@@ -49,12 +49,13 @@ reads and what an agent parses.
 yt login                                          browser OAuth; credential to the keychain
 yt ls [query] [--fields F] [--json]               list issues with their state
 yt view <id> [--comments]
-yt new <project> <summary> [-d description]
-yt edit <id> [-s summary] [-d description]
+yt new <project> <summary> [-d description | -f file]   -d/-f omitted: stdin
+yt edit <id> [-s summary] [-d description | -f file]
 yt cmd <id...> "<command>" [--as user] [--dry-run]   every other mutation
 yt comment <id> <text>
 yt attach <id> <file...>
-yt art ls|view|new|edit                           knowledge base
+yt art ls [--project P] [--grep text]             knowledge base, as a tree
+yt art view|new|edit ...
 yt board ls|new <project> <name> [--columns ...]
 yt state ls|add|edit|order <project> ...          the State value set
 yt type ls|add|edit|order <project> ...           the Type value set (issue types)

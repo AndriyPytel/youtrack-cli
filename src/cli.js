@@ -12,12 +12,13 @@ const HELP = `yt — a thin YouTrack CLI
   yt logout                                   clear the stored credential
   yt ls [query] [--fields F] [--json]         list issues with their state
   yt view <id> [--comments]
-  yt new <project> <summary> [-d description]
-  yt edit <id> [-s summary] [-d description]
+  yt new <project> <summary> [-d description | -f file]    -d/-f omitted: stdin
+  yt edit <id> [-s summary] [-d description | -f file]
   yt cmd <id...> "<command>" [--as user] [--dry-run]    every other mutation
   yt comment <id> <text>
   yt attach <id> <file...>
-  yt art ls|view|new|edit                     knowledge base
+  yt art ls|view|new|edit                     knowledge base, listed as a tree
+    yt art ls [--project P] [--grep text]     --grep filters titles client-side
   yt board ls|new <project> <name> [--columns "A,B,C"]
   yt state ls <project> [--all]               State values; --all shows archived too
   yt state add <project> <name> [--resolved] [--archived] [--after "Other"]

@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
 import { openSession } from '../session.js'
-import { parse, jsonFlag, fieldsFlag } from '../args.js'
+import { parse, jsonFlag, fieldsFlag, fileFlag, optionalText } from '../args.js'
 import { table, print, printJson, listStyle, cyan, dim } from '../render.js'
 import { fieldValue, namedField, projectId } from '../resolve.js'
 import { CliError, EXIT } from '../errors.js'
@@ -96,11 +96,15 @@ export async function comment(argv) {
 export async function create(argv) {
   const { values, positionals } = parse(argv, {
     ...jsonFlag,
+    ...fileFlag,
     description: { type: 'string', short: 'd' },
   })
   const [project, ...summary] = positionals
-  if (!project || summary.length === 0) throw new CliError('Usage: yt new <project> <summary> [-d description]')
+  if (!project || summary.length === 0) {
+    throw new CliError('Usage: yt new <project> <summary> [-d description | -f file]')
+  }
 
+  const description = optionalText(values.file, values.description)
   const { api } = await openSession()
   const issue = await api.request('/api/issues', {
     method: 'POST',
@@ -108,7 +112,7 @@ export async function create(argv) {
     body: {
       project: { id: await projectId(api, project) },
       summary: summary.join(' '),
-      description: values.description,
+      description,
     },
   })
   if (values.json) return printJson(issue)
@@ -118,12 +122,17 @@ export async function create(argv) {
 export async function edit(argv) {
   const { values, positionals } = parse(argv, {
     ...jsonFlag,
+    ...fileFlag,
     summary: { type: 'string', short: 's' },
     description: { type: 'string', short: 'd' },
   })
   const id = positionals[0]
-  if (!id) throw new CliError('Usage: yt edit <id> [-s summary] [-d description]')
-  if (values.summary === undefined && values.description === undefined) {
+  if (!id) throw new CliError('Usage: yt edit <id> [-s summary] [-d description | -f file]')
+
+  // -s alone is already a complete change; don't reach for a description nobody asked to set.
+  const wanted = values.description !== undefined || values.file !== undefined || values.summary === undefined
+  const description = wanted ? optionalText(values.file, values.description) : undefined
+  if (values.summary === undefined && description === undefined) {
     throw new CliError('Nothing to change: pass -s and/or -d.')
   }
 
@@ -131,7 +140,7 @@ export async function edit(argv) {
   const issue = await api.request(`/api/issues/${id}`, {
     method: 'POST',
     query: { fields: 'idReadable' },
-    body: { summary: values.summary, description: values.description },
+    body: { summary: values.summary, description },
     notFound: `No such issue: ${id}`,
   })
   if (values.json) return printJson(issue)

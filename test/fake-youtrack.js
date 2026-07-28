@@ -51,7 +51,25 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
         idReadable: 'DEMO-A-1',
         summary: 'Runbook',
         content: '# Runbook\nhow to ship',
+        ordinal: 0,
         project: { shortName: 'DEMO' },
+      },
+      'DEMO-A-2': {
+        id: '3-2',
+        idReadable: 'DEMO-A-2',
+        summary: 'Deploying',
+        content: 'steps',
+        ordinal: 1,
+        parentArticle: { idReadable: 'DEMO-A-1' },
+        project: { shortName: 'DEMO' },
+      },
+      'OPS-A-1': {
+        id: '3-3',
+        idReadable: 'OPS-A-1',
+        summary: 'Export pipeline',
+        content: 'ops',
+        ordinal: 0,
+        project: { shortName: 'OPS' },
       },
     },
     states: [
@@ -175,6 +193,18 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     const stateField = () => ({ field: { id: 'f-1', name: 'State' }, bundle: { $type: 'StateBundle', id: 'b-1', values: state.states } })
     const typeField = () => ({ field: { id: 'f-2', name: 'Type' }, bundle: { $type: 'EnumBundle', id: 'b-2', values: state.types } })
     const projectFields = { '0-0': () => [stateField(), typeField()], '0-1': () => [typeField()] }
+
+    const projectShortNames = { '0-0': 'DEMO', '0-1': 'OPS' }
+    const projectArticles = path.match(/^\/api\/admin\/projects\/([^/]+)\/articles$/)
+    if (projectArticles) {
+      const shortName = projectShortNames[projectArticles[1]]
+      if (!shortName) return json(response, 404, { error: 'Not Found' })
+      return json(
+        response,
+        200,
+        Object.values(state.articles).filter((article) => article.project?.shortName === shortName),
+      )
+    }
 
     const fieldsMatch = path.match(/^\/api\/admin\/projects\/([^/]+)\/customFields$/)
     if (fieldsMatch) {

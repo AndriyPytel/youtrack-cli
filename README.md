@@ -56,8 +56,15 @@ yt comment <id> <text>
 yt attach <id> <file...>
 yt art ls|view|new|edit                           knowledge base
 yt board ls|new <project> <name> [--columns ...]
-yt state ls|add <project> <name>
+yt state ls|add|edit|order <project> ...          the State value set
+yt type ls|add|edit|order <project> ...           the Type value set (issue types)
 ```
+
+`state` and `type` are one command under two names; `--field NAME` points either of
+them at a field this instance calls something else. Values can be added, renamed,
+reordered, archived, and — for states — marked as resolving the issue. Deleting is
+deliberately absent: archiving hides a value without touching the issues that
+already carry it.
 
 Mutations go through YouTrack's own command language, so custom fields, tags,
 links, priorities and milestones work without this tool knowing they exist:

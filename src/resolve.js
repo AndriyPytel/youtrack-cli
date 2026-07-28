@@ -9,15 +9,45 @@ export async function projectId(api, shortName) {
   return project.id
 }
 
-/** The State field's bundle for a project, with the values already in it. */
-export async function stateBundle(api, shortName) {
+// Every bundle type's url segment is its `$type` without the suffix, except this one.
+const BUNDLE_PATHS = { OwnedBundle: 'ownedField' }
+
+/** A named field of a project, the bundle behind it and the values already in it. */
+export async function fieldBundle(api, shortName, fieldName) {
   const id = await projectId(api, shortName)
   const fields = await api.request(`/api/admin/projects/${id}/customFields`, {
-    query: { fields: 'field(id,name),bundle(id,values(name))', $top: 200 },
+    query: { fields: 'field(id,name),bundle($type,id,values(id,name,ordinal,archived,isResolved))', $top: 200 },
   })
-  const state = fields.find((candidate) => candidate.field?.name === 'State')
-  if (!state?.bundle) throw new CliError(`Project ${shortName} has no State field.`, EXIT.NOT_FOUND)
-  return { projectId: id, fieldId: state.field.id, bundleId: state.bundle.id, values: state.bundle.values || [] }
+  const found = fields.find((candidate) => candidate.field?.name === fieldName)
+  if (!found?.bundle) {
+    const withValues = fields.filter((candidate) => candidate.bundle).map((candidate) => candidate.field.name)
+    throw new CliError(
+      `Project ${shortName} has no ${fieldName} field.` +
+        (withValues.length > 0 ? ` Fields with a value set: ${withValues.join(', ')}.` : ''),
+      EXIT.NOT_FOUND,
+    )
+  }
+  const type = found.bundle.$type || 'Bundle'
+  return {
+    projectId: id,
+    fieldId: found.field.id,
+    bundleId: found.bundle.id,
+    bundlePath: BUNDLE_PATHS[type] || type.replace('Bundle', '').toLowerCase(),
+    values: found.bundle.values || [],
+  }
+}
+
+export const stateBundle = (api, shortName) => fieldBundle(api, shortName, 'State')
+
+/** Which projects share a bundle — a value added here shows up in all of them. */
+export async function bundleProjects(api, fieldId, bundleId) {
+  const field = await api.request(`/api/admin/customFieldSettings/customFields/${fieldId}`, {
+    query: { fields: 'instances(project(shortName),bundle(id))' },
+  })
+  return (field?.instances || [])
+    .filter((instance) => instance.bundle?.id === bundleId)
+    .map((instance) => instance.project?.shortName)
+    .filter(Boolean)
 }
 
 export function fieldValue(value) {

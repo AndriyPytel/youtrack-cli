@@ -43,6 +43,12 @@ Repository artifacts — code, comments, docs, commit messages, issues — are i
   unusable board. Columns reference field values **by name**.
 - Board columns can only reference states that already exist in the project's
   bundle.
+- A bundle can belong to **several projects at once** — the stock `Type` field
+  usually does. Adding a value through one project silently adds it to all of
+  them; the response says nothing about it. `instances(project(shortName))` on
+  the custom field is what reveals the reach.
+- State transitions are not data. They exist only as workflow JavaScript, so no
+  REST call creates one. See ADR-0005.
 
 ## Testing
 

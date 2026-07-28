@@ -201,10 +201,77 @@ test('yt art new reads content from stdin when neither -f nor -c is given', asyn
   assert.equal(server.state.articles[out.trim()].content, 'piped content')
 })
 
-test('yt state lists and adds', async () => {
-  assert.equal((await yt(['state', 'ls', 'DEMO'])).out, 'Open\nIn Progress\nDone\n')
-  assert.equal((await yt(['state', 'add', 'DEMO', 'Frozen'])).out, 'DEMO state added: Frozen\n')
+test('yt state lists and adds, marking only the values that carry a flag', async () => {
+  assert.equal((await yt(['state', 'ls', 'DEMO'])).out, 'Open\nIn Progress\nDone         resolved\n')
+  assert.equal((await yt(['state', 'add', 'DEMO', 'Frozen'])).out, 'DEMO State added: Frozen\n')
   assert.ok(server.state.states.some((state) => state.name === 'Frozen'))
+})
+
+test('yt type ls hides archived values until --all', async () => {
+  assert.equal((await yt(['type', 'ls', 'DEMO'])).out, 'Bug\nTask\n')
+  assert.equal((await yt(['type', 'ls', 'DEMO', '--all'])).out, 'Bug\nTask\nEpic  archived\n')
+})
+
+test('yt type add names the other projects that share the bundle', async () => {
+  const { code, out } = await yt(['type', 'add', 'DEMO', 'my custom bug'])
+  assert.equal(code, 0)
+  assert.equal(out, 'DEMO Type added: my custom bug — bundle shared with OPS\n')
+  assert.ok(server.state.types.some((value) => value.name === 'my custom bug'))
+  // The same value is now visible from OPS, which is the point of saying so.
+  assert.equal((await yt(['type', 'ls', 'OPS'])).out, 'Bug\nTask\nmy custom bug\n')
+})
+
+test('yt type add points at --no-archived when the value exists but is hidden', async () => {
+  const { code, err } = await yt(['type', 'add', 'DEMO', 'Epic'])
+  assert.equal(code, 4)
+  assert.match(err, /archived Type "Epic".*--no-archived/s)
+})
+
+test('yt state edit renames and resolves in one call', async () => {
+  const { code, out } = await yt(['state', 'edit', 'DEMO', 'Frozen', '--rename', 'Paused', '--resolved'])
+  assert.equal(code, 0)
+  assert.equal(out, 'DEMO State updated: Frozen → Paused\n')
+  const paused = server.state.states.find((value) => value.name === 'Paused')
+  assert.equal(paused.isResolved, true)
+})
+
+test('yt state edit --no-resolved turns the flag off rather than dropping it', async () => {
+  await yt(['state', 'edit', 'DEMO', 'Paused', '--no-resolved'])
+  assert.equal(server.state.states.find((value) => value.name === 'Paused').isResolved, false)
+})
+
+test('--resolved is rejected on a field that has no such attribute', async () => {
+  const { code, err } = await yt(['type', 'edit', 'DEMO', 'Bug', '--resolved'])
+  assert.equal(code, 4)
+  assert.match(err, /State values only/)
+  assert.equal(server.state.types.find((value) => value.name === 'Bug').isResolved, undefined)
+})
+
+test('yt type order writes an ordinal only where it changed', async () => {
+  server.requests.length = 0
+  const { code, out } = await yt(['type', 'order', 'DEMO', 'Task,Bug'])
+  assert.equal(code, 0)
+  assert.equal(out, 'DEMO Type order: Task, Bug, Epic, my custom bug — bundle shared with OPS\n')
+  assert.deepEqual(
+    server.state.types.map((value) => value.name),
+    ['Task', 'Bug', 'Epic', 'my custom bug'],
+  )
+  const writes = server.requests.filter((entry) => /\/bundles\/enum\/b-2\/values\/./.test(entry.path))
+  assert.equal(writes.length, 2, 'values already in place must not be rewritten')
+})
+
+test('yt state add --after places the new value without a second call', async () => {
+  await yt(['state', 'add', 'DEMO', 'Blocked', '--after', 'Open'])
+  assert.deepEqual(
+    server.state.states.map((value) => value.name),
+    ['Open', 'Blocked', 'In Progress', 'Done', 'Paused'],
+  )
+})
+
+test('yt state order refuses a name the project does not have', async () => {
+  const { code, err } = await yt(['state', 'order', 'DEMO', 'Open,Nowhere'])
+  assert.equal(code, 4)
+  assert.match(err, /no State "Nowhere"/)
 })
 
 test('yt board new refuses a column with no matching state, before creating anything', async () => {
@@ -235,6 +302,24 @@ test('yt board new creates a board with columns in one call', async () => {
   )
 
   assert.match((await yt(['board', 'ls'])).out, /Sprint\s+DEMO\s+Open \| Done/)
+})
+
+test('yt board new leaves archived states out of the default columns', async () => {
+  await yt(['state', 'edit', 'DEMO', 'Paused', '--archived'])
+  const { code } = await yt(['board', 'new', 'DEMO', 'Everything'])
+  assert.equal(code, 0)
+  assert.deepEqual(
+    server.state.agiles.at(-1).columnSettings.columns.map((column) => column.fieldValues[0].name),
+    ['Open', 'Blocked', 'In Progress', 'Done'],
+  )
+})
+
+test('yt board new refuses an archived state named explicitly, before creating anything', async () => {
+  const before = server.state.agiles.length
+  const { code, err } = await yt(['board', 'new', 'DEMO', 'Stale', '--columns', 'Open,Paused'])
+  assert.equal(code, 4)
+  assert.match(err, /"Paused" archived.*--no-archived/s)
+  assert.equal(server.state.agiles.length, before)
 })
 
 test('yt help and an unknown command', async () => {

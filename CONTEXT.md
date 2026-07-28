@@ -20,10 +20,25 @@ A named attribute of an Issue whose set of legal values is defined per Project.
 `State`, `Assignee`, `Priority` and `Fix versions` are custom fields, not
 built-ins. The wrapper never assumes which ones exist.
 
+## Value set
+
+The set of legal values behind a Custom field. **A value set may belong to
+several Projects at once**, so a value added through one Project appears in every
+Project that shares the set.
+
 ## State
 
 The value of the `State` custom field — where an Issue sits in the pipeline. A
-State must exist in the Project's bundle before anything can reference it.
+State must exist in the Project's Value set before anything can reference it. A
+State carries whether it counts the Issue as **resolved**, whether it is hidden
+from further use without disturbing the Issues already in it, and its position in
+the sequence.
+
+## Issue type
+
+The value of the `Type` custom field. There is no separate type entity, as there
+is no separate Milestone entity — types are values in a Value set and are added
+the same way States are.
 
 ## Command
 

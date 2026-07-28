@@ -54,7 +54,17 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
         project: { shortName: 'DEMO' },
       },
     },
-    states: [{ name: 'Open' }, { name: 'In Progress' }, { name: 'Done' }],
+    states: [
+      { id: 's-1', name: 'Open', ordinal: 0 },
+      { id: 's-2', name: 'In Progress', ordinal: 1 },
+      { id: 's-3', name: 'Done', ordinal: 2, isResolved: true },
+    ],
+    // Shared with OPS, like the stock Type field on a real instance.
+    types: [
+      { id: 't-1', name: 'Bug', ordinal: 0 },
+      { id: 't-2', name: 'Task', ordinal: 1 },
+      { id: 't-3', name: 'Epic', ordinal: 2, archived: true },
+    ],
     agiles: [],
     counter: 100,
     refreshCount: 0,
@@ -156,14 +166,52 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     }
 
     if (path === '/api/admin/projects') {
-      return json(response, 200, [{ id: '0-0', shortName: 'DEMO' }])
+      return json(response, 200, [
+        { id: '0-0', shortName: 'DEMO' },
+        { id: '0-1', shortName: 'OPS' },
+      ])
     }
-    if (path === '/api/admin/projects/0-0/customFields') {
-      return json(response, 200, [{ field: { id: 'f-1', name: 'State' }, bundle: { id: 'b-1', values: state.states } }])
+
+    const stateField = () => ({ field: { id: 'f-1', name: 'State' }, bundle: { $type: 'StateBundle', id: 'b-1', values: state.states } })
+    const typeField = () => ({ field: { id: 'f-2', name: 'Type' }, bundle: { $type: 'EnumBundle', id: 'b-2', values: state.types } })
+    const projectFields = { '0-0': () => [stateField(), typeField()], '0-1': () => [typeField()] }
+
+    const fieldsMatch = path.match(/^\/api\/admin\/projects\/([^/]+)\/customFields$/)
+    if (fieldsMatch) {
+      const fields = projectFields[fieldsMatch[1]]
+      if (!fields) return json(response, 404, { error: 'Not Found' })
+      return json(response, 200, fields())
     }
-    if (path === '/api/admin/customFieldSettings/bundles/state/b-1/values') {
-      state.states.push({ name: body.name })
-      return json(response, 200, { name: body.name })
+
+    // A bundle belongs to every project whose field instance points at it.
+    if (path === '/api/admin/customFieldSettings/customFields/f-1') {
+      return json(response, 200, { instances: [{ project: { shortName: 'DEMO' }, bundle: { id: 'b-1' } }] })
+    }
+    if (path === '/api/admin/customFieldSettings/customFields/f-2') {
+      return json(response, 200, {
+        instances: [
+          { project: { shortName: 'DEMO' }, bundle: { id: 'b-2' } },
+          { project: { shortName: 'OPS' }, bundle: { id: 'b-2' } },
+        ],
+      })
+    }
+
+    const bundles = { 'b-1': state.states, 'b-2': state.types }
+    const valueMatch = path.match(/^\/api\/admin\/customFieldSettings\/bundles\/\w+\/([^/]+)\/values(?:\/([^/]+))?$/)
+    if (valueMatch && request.method === 'POST') {
+      const [, bundleId, valueId] = valueMatch
+      const list = bundles[bundleId]
+      if (!list) return json(response, 404, { error: 'Not Found' })
+      if (!valueId) {
+        const added = { id: `v-${(state.counter += 1)}`, ordinal: list.length, ...body }
+        list.push(added)
+        return json(response, 200, added)
+      }
+      const value = list.find((candidate) => candidate.id === valueId)
+      if (!value) return json(response, 404, { error: 'Not Found' })
+      Object.assign(value, body)
+      list.sort((left, right) => left.ordinal - right.ordinal)
+      return json(response, 200, value)
     }
 
     if (path === '/api/agiles' && request.method === 'GET') return json(response, 200, state.agiles)

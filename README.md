@@ -59,6 +59,9 @@ yt art view|new|edit ...
 yt board ls|new <project> <name> [--columns ...]
 yt state ls|add|edit|order <project> ...          the State value set
 yt type ls|add|edit|order <project> ...           the Type value set (issue types)
+yt project new <shortName> <name> [-d description] [--leader login] [--org name]
+yt org new <name> [-d description]                an organization to hold projects
+yt user new <login> [--name "..."] [--email ...]  password to stderr, once
 ```
 
 `state` and `type` are one command under two names; `--field NAME` points either of

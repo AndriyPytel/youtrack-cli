@@ -84,6 +84,15 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       { id: 't-3', name: 'Epic', ordinal: 2, archived: true },
     ],
     agiles: [],
+    projects: [
+      { id: '0-0', shortName: 'DEMO' },
+      { id: '0-1', shortName: 'OPS' },
+    ],
+    organizations: [{ id: '1-0', name: 'Acme', description: 'the stock one' }],
+    users: [
+      { id: '2-1', login: 'root', fullName: 'Root' },
+      { id: '2-3', login: 'alice', fullName: 'Alice' },
+    ],
     counter: 100,
     refreshCount: 0,
     accepted: new Set([token, ...accessTokens]),
@@ -122,7 +131,21 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     const bearer = (request.headers.authorization || '').replace('Bearer ', '')
     if (state.rejectAll || !state.accepted.has(bearer)) return json(response, 401, { error: 'Unauthorized' })
 
-    if (path === '/api/users/me') return json(response, 200, { login: 'root', fullName: 'Root' })
+    if (path === '/api/users/me') return json(response, 200, { id: '2-1', login: 'root', fullName: 'Root' })
+
+    if (path === '/api/users' && request.method === 'GET') return json(response, 200, state.users)
+    if (path === '/api/users' && request.method === 'POST') {
+      const user = { id: `2-${state.users.length}`, ...body }
+      state.users.push(user)
+      return json(response, 200, user)
+    }
+
+    if (path === '/api/admin/organizations' && request.method === 'GET') return json(response, 200, state.organizations)
+    if (path === '/api/admin/organizations' && request.method === 'POST') {
+      const organization = { id: `1-${state.organizations.length}`, ...body }
+      state.organizations.push(organization)
+      return json(response, 200, organization)
+    }
 
     if (path === '/hub/api/rest/services') {
       if (request.method === 'GET') {
@@ -183,21 +206,21 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       return json(response, 200, {})
     }
 
-    if (path === '/api/admin/projects') {
-      return json(response, 200, [
-        { id: '0-0', shortName: 'DEMO' },
-        { id: '0-1', shortName: 'OPS' },
-      ])
+    if (path === '/api/admin/projects' && request.method === 'GET') return json(response, 200, state.projects)
+    if (path === '/api/admin/projects' && request.method === 'POST') {
+      if (!body.leader?.id) return json(response, 400, { error_description: 'leader is required' })
+      const project = { id: `0-${state.projects.length}`, ...body }
+      state.projects.push(project)
+      return json(response, 200, project)
     }
 
     const stateField = () => ({ field: { id: 'f-1', name: 'State' }, bundle: { $type: 'StateBundle', id: 'b-1', values: state.states } })
     const typeField = () => ({ field: { id: 'f-2', name: 'Type' }, bundle: { $type: 'EnumBundle', id: 'b-2', values: state.types } })
     const projectFields = { '0-0': () => [stateField(), typeField()], '0-1': () => [typeField()] }
 
-    const projectShortNames = { '0-0': 'DEMO', '0-1': 'OPS' }
     const projectArticles = path.match(/^\/api\/admin\/projects\/([^/]+)\/articles$/)
     if (projectArticles) {
-      const shortName = projectShortNames[projectArticles[1]]
+      const shortName = state.projects.find((project) => project.id === projectArticles[1])?.shortName
       if (!shortName) return json(response, 404, { error: 'Not Found' })
       return json(
         response,

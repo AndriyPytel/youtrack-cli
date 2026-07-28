@@ -1,13 +1,17 @@
 import { CliError, EXIT } from './errors.js'
 
-export async function projectId(api, shortName) {
-  const projects = await api.request('/api/admin/projects', {
-    query: { fields: 'id,shortName', $top: 1000 },
-  })
-  const project = projects.find((candidate) => candidate.shortName === shortName)
-  if (!project) throw new CliError(`No such project: ${shortName}`, EXIT.NOT_FOUND)
-  return project.id
+/** The database id behind a name the user typed. */
+async function lookup(api, path, field, value, what) {
+  const items = await api.request(path, { query: { fields: `id,${field}`, $top: 1000 } })
+  const found = items.find((item) => item[field] === value)
+  if (!found) throw new CliError(`No such ${what}: ${value}`, EXIT.NOT_FOUND)
+  return found.id
 }
+
+export const projectId = (api, shortName) => lookup(api, '/api/admin/projects', 'shortName', shortName, 'project')
+export const userId = (api, login) => lookup(api, '/api/users', 'login', login, 'user')
+export const organizationId = (api, name) =>
+  lookup(api, '/api/admin/organizations', 'name', name, 'organization')
 
 // Every bundle type's url segment is its `$type` without the suffix, except this one.
 const BUNDLE_PATHS = { OwnedBundle: 'ownedField' }

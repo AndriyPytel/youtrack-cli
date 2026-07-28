@@ -255,6 +255,49 @@ test('yt art new reads content from stdin when neither -f nor -c is given', asyn
   assert.equal(server.state.articles[out.trim()].content, 'piped content')
 })
 
+test('yt project new defaults the leader to the authenticated user', async () => {
+  const { code, out } = await yt(['project', 'new', 'NEW', 'A new project', '-d', 'made by a test'])
+  assert.equal(code, 0)
+  assert.equal(out, 'NEW\n')
+  const created = server.state.projects.find((project) => project.shortName === 'NEW')
+  assert.deepEqual(created.leader, { id: '2-1' })
+  assert.equal(created.name, 'A new project')
+  assert.equal(created.description, 'made by a test')
+  assert.equal(created.organization, undefined)
+})
+
+test('yt project new resolves --leader and --org to database ids', async () => {
+  const { code } = await yt(['project', 'new', 'WITHORG', 'Owned', '--leader', 'alice', '--org', 'Acme'])
+  assert.equal(code, 0)
+  const created = server.state.projects.find((project) => project.shortName === 'WITHORG')
+  assert.deepEqual(created.leader, { id: '2-3' })
+  assert.deepEqual(created.organization, { id: '1-0' })
+
+  const unknown = await yt(['project', 'new', 'NOPE', 'x', '--org', 'Missing Inc'])
+  assert.equal(unknown.code, 2)
+  assert.match(unknown.err, /No such organization: Missing Inc/)
+})
+
+test('yt org new creates an organization', async () => {
+  assert.equal((await yt(['org', 'new', 'Globex', '-d', 'new one'])).out, 'Globex\n')
+  assert.ok(server.state.organizations.some((organization) => organization.name === 'Globex'))
+})
+
+test('yt user new generates the password instead of taking it as a flag', async () => {
+  const { code, out, err } = await yt(['user', 'new', 'bob', '--name', 'Bob', '--email', 'bob@example.com'])
+  assert.equal(code, 0)
+  assert.equal(out, 'bob\n')
+  assert.match(err, /^password: \S{20,}\n$/)
+
+  const created = server.state.users.find((user) => user.login === 'bob')
+  assert.equal(created.fullName, 'Bob')
+  assert.equal(created.email, 'bob@example.com')
+  assert.ok(created.password.length >= 20)
+
+  // A password flag would put the secret in `ps` output and in shell history.
+  assert.equal((await yt(['user', 'new', 'eve', '--password', 'hunter2'])).code, 4)
+})
+
 test('yt state lists and adds, marking only the values that carry a flag', async () => {
   assert.equal((await yt(['state', 'ls', 'DEMO'])).out, 'Open\nIn Progress\nDone         resolved\n')
   assert.equal((await yt(['state', 'add', 'DEMO', 'Frozen'])).out, 'DEMO State added: Frozen\n')

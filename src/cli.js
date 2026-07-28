@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { ls, view, comment, create, edit, attach, cmd } from './commands/issues.js'
 import { art } from './commands/art.js'
 import { state, type, board } from './commands/pipeline.js'
+import { project, org, user } from './commands/admin.js'
 import { login, logout } from './commands/auth.js'
 import { print } from './render.js'
 import { CliError, EXIT } from './errors.js'
@@ -26,6 +27,10 @@ const HELP = `yt — a thin YouTrack CLI
   yt state order <project> "Open,In Progress,Fixed"
   yt type ls|add|edit|order <project> ...      the same, for issue types
     Both take --field NAME for instances that call the field something else.
+  yt project new <shortName> <name> [-d desc] [--leader login] [--org name]
+  yt org new <name> [-d description]           an organization to hold projects
+  yt user new <login> [--name "Full Name"] [--email a@b.c]
+    The password is generated and printed to stderr once; it is never a flag.
 
   YT_URL, YT_TOKEN override the config file and the keychain.
   yt cmd --help  for the command language.
@@ -44,6 +49,9 @@ const commands = {
   board,
   state,
   type,
+  project,
+  org,
+  user,
   login,
   logout,
   help: async () => print(HELP),

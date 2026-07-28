@@ -49,6 +49,18 @@ Repository artifacts — code, comments, docs, commit messages, issues — are i
   the custom field is what reveals the reach.
 - State transitions are not data. They exist only as workflow JavaScript, so no
   REST call creates one. See ADR-0005.
+- **The entity docs lie about `User` and `Project`.** `POST /api/users` with
+  `login` and `password` works, despite every `User` attribute being marked
+  read-only. `Project` does have an `organization` attribute, despite it being
+  absent from the entity page. Measured 2026-07-29.
+- Organizations live in the YouTrack API at `/api/admin/organizations`, not only
+  in Hub. Hub is unreachable anyway: the OAuth token is scoped to the YouTrack
+  service, so `/hub/api/rest/*` answers 401 asking for scope `0-0-0-0-0`.
+- A user cannot be deleted through REST — `DELETE /api/users/<id>` is a 400.
+  Banning (`POST` with `banned: true`) is the only way back.
+- A project created through REST comes up with the full default field set —
+  `State`, `Priority`, `Type` and the rest — so `yt state ls` and `yt board new`
+  work on it immediately.
 
 ## Testing
 

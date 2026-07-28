@@ -14,6 +14,16 @@ A container for Issues, Articles and its own **State** vocabulary. Addressed by
 its short name (`DEMO`). Two projects on the same instance may have entirely
 different custom fields.
 
+## Organization
+
+A container for Projects, above the Project in the hierarchy. Optional — a
+Project created without one is complete and usable. Addressed by its name.
+
+## User
+
+An account on the instance, addressed by its login. A User can be created and
+banned, but never deleted.
+
 ## Custom field
 
 A named attribute of an Issue whose set of legal values is defined per Project.

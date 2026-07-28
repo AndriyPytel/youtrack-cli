@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { ls, view, comment, create, edit, attach, cmd } from './commands/issues.js'
 import { art } from './commands/art.js'
 import { state, board } from './commands/pipeline.js'
@@ -48,10 +49,7 @@ export async function run(argv) {
     return EXIT.OK
   }
   if (name === '--version' || name === '-v') {
-    const { version } = await import('node:module').then((module) =>
-      module.createRequire(import.meta.url)('../package.json'),
-    )
-    print(version)
+    print(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version)
     return EXIT.OK
   }
 

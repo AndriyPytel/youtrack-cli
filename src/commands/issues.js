@@ -164,8 +164,9 @@ export async function attach(argv) {
     )
   }
 
-  if (values.json) return printJson(uploaded.flat())
-  for (const attachment of uploaded.flat()) print(`${id} attached ${attachment.name ?? ''}`)
+  const attachments = uploaded.flat()
+  if (values.json) return printJson(attachments)
+  for (const attachment of attachments) print(`${id} attached ${attachment.name ?? ''}`)
 }
 
 const stripMarkup = (text = '') =>

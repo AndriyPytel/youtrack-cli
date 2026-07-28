@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { CliError, EXIT } from './errors.js'
 
-const base64url = (buffer) => buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+const base64url = (buffer) => buffer.toString('base64url')
 
 export function pkce() {
   const verifier = base64url(randomBytes(32))

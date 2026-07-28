@@ -9,8 +9,7 @@
     "url": "git+https://github.com/apytel/youtrack-cli.git"
   },
   "bin": {
-    "yt": "bin/yt.js",
-    "youtrack": "bin/yt.js"
+    "yt": "bin/yt.js"
   },
   "files": [
     "bin",

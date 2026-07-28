@@ -148,12 +148,6 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     if (path === '/api/admin/projects') {
       return json(response, 200, [{ id: '0-0', shortName: 'DEMO' }])
     }
-    if (path === '/api/admin/customFieldSettings/customFields') {
-      return json(response, 200, [
-        { id: 'f-1', name: 'State' },
-        { id: 'f-2', name: 'Assignee' },
-      ])
-    }
     if (path === '/api/admin/projects/0-0/customFields') {
       return json(response, 200, [{ field: { id: 'f-1', name: 'State' }, bundle: { id: 'b-1', values: state.states } }])
     }

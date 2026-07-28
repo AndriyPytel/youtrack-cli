@@ -9,15 +9,6 @@ export async function projectId(api, shortName) {
   return project.id
 }
 
-export async function customFieldId(api, name) {
-  const fields = await api.request('/api/admin/customFieldSettings/customFields', {
-    query: { fields: 'id,name', $top: 1000 },
-  })
-  const field = fields.find((candidate) => candidate.name === name)
-  if (!field) throw new CliError(`No such custom field: ${name}`, EXIT.NOT_FOUND)
-  return field.id
-}
-
 /** The State field's bundle for a project, with the values already in it. */
 export async function stateBundle(api, shortName) {
   const id = await projectId(api, shortName)
@@ -26,7 +17,7 @@ export async function stateBundle(api, shortName) {
   })
   const state = fields.find((candidate) => candidate.field?.name === 'State')
   if (!state?.bundle) throw new CliError(`Project ${shortName} has no State field.`, EXIT.NOT_FOUND)
-  return { projectId: id, bundleId: state.bundle.id, values: state.bundle.values || [] }
+  return { projectId: id, fieldId: state.field.id, bundleId: state.bundle.id, values: state.bundle.values || [] }
 }
 
 export function fieldValue(value) {

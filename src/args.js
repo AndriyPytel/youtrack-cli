@@ -1,12 +1,7 @@
 import { parseArgs } from 'node:util'
-import { CliError } from './errors.js'
 
 export function parse(argv, options = {}) {
-  try {
-    return parseArgs({ args: argv, options, allowPositionals: true, strict: true })
-  } catch (error) {
-    throw new CliError(error.message)
-  }
+  return parseArgs({ args: argv, options, allowPositionals: true, strict: true })
 }
 
 export const jsonFlag = { json: { type: 'boolean' } }

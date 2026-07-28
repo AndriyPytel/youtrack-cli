@@ -1,7 +1,7 @@
 import { openSession } from '../session.js'
 import { parse, jsonFlag } from '../args.js'
 import { table, print, printJson, listStyle } from '../render.js'
-import { customFieldId, stateBundle } from '../resolve.js'
+import { stateBundle } from '../resolve.js'
 import { CliError } from '../errors.js'
 
 async function stateLs(argv) {
@@ -57,7 +57,7 @@ async function boardNew(argv) {
   }
 
   const { api } = await openSession()
-  const { projectId, values: states } = await stateBundle(api, project)
+  const { projectId, fieldId, values: states } = await stateBundle(api, project)
   const wanted = values.columns ? values.columns.split(',').map((column) => column.trim()) : states.map((s) => s.name)
 
   // A column can only reference a state that already exists — fail before creating anything.
@@ -76,7 +76,7 @@ async function boardNew(argv) {
       name: name.join(' '),
       projects: [{ id: projectId }],
       columnSettings: {
-        field: { id: await customFieldId(api, 'State') },
+        field: { id: fieldId },
         // A column is defined by the field values it holds; `presentation` is
         // derived from them and read-only. Sending it alone makes a dead board.
         columns: wanted.map((name) => ({ fieldValues: [{ name }] })),

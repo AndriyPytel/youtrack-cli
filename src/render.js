@@ -4,7 +4,6 @@ const paint = (code) => (text) => (tty() ? `[${code}m${text}[0m` : text)
 
 export const cyan = paint(36)
 export const dim = paint(2)
-export const bold = paint(1)
 
 /**
  * Aligned columns, no box drawing. Colour is applied after padding so that

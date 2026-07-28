@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { CliError } from './errors.js'
 
-export function configDir() {
+function configDir() {
   return process.env.YT_CONFIG_DIR || join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'youtrack-cli')
 }
 

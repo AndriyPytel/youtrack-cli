@@ -5,15 +5,12 @@ import { CliError, EXIT } from './errors.js'
  * returns HTTP 200 with an empty array — silently wrong. Arrays repeat here.
  */
 export function buildQuery(params = {}) {
-  const search = new URLSearchParams()
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null) continue
-    for (const item of Array.isArray(value) ? value : [value]) {
-      if (item !== undefined && item !== null) search.append(key, String(item))
-    }
-  }
-  const string = search.toString()
-  return string ? `?${string}` : ''
+  const search = new URLSearchParams(
+    Object.entries(params).flatMap(([key, value]) =>
+      [value].flat().filter((item) => item !== undefined && item !== null).map((item) => [key, String(item)]),
+    ),
+  ).toString()
+  return search ? `?${search}` : ''
 }
 
 async function describe(response) {

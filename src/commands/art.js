@@ -8,16 +8,10 @@ import { CliError } from '../errors.js'
 const LIST_FIELDS = 'idReadable,summary,parentArticle(idReadable),project(shortName)'
 const VIEW_FIELDS = 'idReadable,summary,content,project(shortName)'
 
-async function readStdin() {
-  const chunks = []
-  for await (const chunk of process.stdin) chunks.push(chunk)
-  return Buffer.concat(chunks).toString('utf8')
-}
-
-async function content(values) {
+function content(values) {
   if (values.file) return readFileSync(values.file, 'utf8')
   if (values.content !== undefined) return values.content
-  return readStdin()
+  return readFileSync(0, 'utf8')
 }
 
 async function ls(argv) {

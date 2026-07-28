@@ -29,8 +29,7 @@ export async function readCredential(url) {
 export async function writeCredential(url, credential) {
   try {
     ;(await entry(url)).setPassword(JSON.stringify(credential))
-  } catch (error) {
-    if (error instanceof CliError) throw error
+  } catch {
     throw new CliError(NO_KEYCHAIN, EXIT.AUTH)
   }
 }

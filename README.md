@@ -28,21 +28,6 @@ The browser flow needs **Allow automatic OAuth client registration via CIMD**
 enabled on the instance — Access Management > OAuth Clients. It is off by
 default. Without it `yt login` explains the switch and falls back to a token.
 
-## Why another one
-
-| | this | typical alternative |
-|---|---|---|
-| Runtime dependencies | 1 | dozens |
-| Login | browser, nothing to paste and nothing to register | paste a token |
-| Credential storage | OS keychain, or `YT_TOKEN` — **never written to disk** | keychain with a plaintext file fallback |
-| `runAs` (attribute work to another user) | yes | no |
-| Milestones | yes | no |
-| Listing 10 issues with their state | ~380 B | ~2–21 KB |
-
-The size difference is not compression — it is asking the API for the right
-fields and printing them without box drawing. The same output is what a human
-reads and what an agent parses.
-
 ## What it can do
 
 `--json` on any command returns YouTrack's raw response, unmodified. `yt help`

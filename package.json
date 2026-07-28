@@ -6,8 +6,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/apytel/youtrack-cli.git"
+    "url": "git+https://github.com/AndriyPytel/youtrack-cli.git"
   },
+  "homepage": "https://github.com/AndriyPytel/youtrack-cli#readme",
+  "bugs": "https://github.com/AndriyPytel/youtrack-cli/issues",
   "bin": {
     "yt": "bin/yt.js"
   },

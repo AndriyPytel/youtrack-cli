@@ -84,3 +84,8 @@ The five canonical triage roles, each label string equal to its name. See
 
 Single-context — one `CONTEXT.md` and one `docs/adr/` at the repo root. See
 `docs/agents/domain.md`.
+
+## YouTrack
+
+Work for this repo lives in YouTrack, not GitHub Issues. Project config: `youtrack.md`.
+The `myga-*` skills drive it.

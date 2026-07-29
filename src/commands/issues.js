@@ -211,7 +211,9 @@ export async function cmd(argv) {
 
   const command = positionals.at(-1)
   const ids = positionals.slice(0, -1)
-  if (ids.length === 0 || !command) throw new CliError(`Usage: ${cmdHelp.split('\n')[0]}`)
+  if (ids.length === 0 || !command || ids.some((id) => !id.trim())) {
+    throw new CliError(`Usage: ${cmdHelp.split('\n')[0]}`)
+  }
 
   const { api } = await openSession()
   const body = { query: command, issues: ids.map((id) => ({ idReadable: id })), runAs: values.as }

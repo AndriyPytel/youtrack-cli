@@ -155,6 +155,20 @@ test('yt cmd --as sets runAs', async () => {
   assert.equal(server.state.applied.runAs, 'agent-bot')
 })
 
+test('a 403 reports the missing permission, not a failed login', async () => {
+  const { code, err } = await yt(['cmd', 'DEMO-1', 'state Done', '--as', 'stranger'])
+  assert.equal(code, 1)
+  assert.match(err, /Permission denied \(403\): No permission to run as another user/)
+})
+
+test('yt cmd with a blank id is a usage error, not a request', async () => {
+  server.requests.length = 0
+  const { code, err } = await yt(['cmd', '', 'state Done'])
+  assert.equal(code, 4)
+  assert.match(err, /^Usage: yt cmd/)
+  assert.equal(server.requests.length, 0)
+})
+
 test('yt cmd --dry-run describes without applying', async () => {
   server.requests.length = 0
   const { code, out } = await yt(['cmd', 'DEMO-1', 'state Done', '--dry-run'])

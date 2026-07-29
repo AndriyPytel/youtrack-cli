@@ -54,11 +54,12 @@ export function createApi({ url, token, refresh }) {
         }
       }
 
-      if (response.status === 401 || response.status === 403) {
-        throw new CliError(
-          `Authentication failed (${response.status}). Run \`yt login\` or set YT_TOKEN.`,
-          EXIT.AUTH,
-        )
+      if (response.status === 401) {
+        throw new CliError('Authentication failed (401). Run `yt login` or set YT_TOKEN.', EXIT.AUTH)
+      }
+      // 403 is a valid credential without the permission — saying "run yt login" sends people the wrong way.
+      if (response.status === 403) {
+        throw new CliError(`Permission denied (403): ${await describe(response)}`.trim(), EXIT.AUTH)
       }
       if (response.status === 404) {
         throw new CliError(options.notFound || `Not found: ${path}`, EXIT.NOT_FOUND)

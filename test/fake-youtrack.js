@@ -202,6 +202,7 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     }
     if (path === '/api/commands') {
       if (body.query.includes('nonsense')) return json(response, 400, { error_description: 'Command not parsed' })
+      if (body.runAs === 'stranger') return json(response, 403, { error_description: 'No permission to run as another user' })
       state.applied = body
       return json(response, 200, {})
     }

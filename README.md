@@ -122,6 +122,8 @@ appeared in.
 
 ```
 yt project new <shortName> <name> [-d description] [--leader login] [--org name]
+yt project team <shortName>             the project team, login and full name
+yt project assign <shortName> <login...>   add users to the project team
 yt org new <name> [-d description]      an organization to hold projects
 yt user new <login> [--name "Full Name"] [--email a@b.c]
 ```
@@ -130,6 +132,11 @@ yt user new <login> [--name "Full Name"] [--email a@b.c]
 authenticated user. `--org` is optional — a project without an organization is
 complete and usable — and a project created this way comes up with the full
 default field set, so `yt state ls` and `yt board new` work on it immediately.
+
+`yt project team` lists everyone who reaches the project, whether directly or
+through a group; `yt project assign` adds direct members. YouTrack replaces the
+member list wholesale on write, so the current members are read and posted back
+with the new ones — assigning someone twice changes nothing.
 
 `yt user new` generates the password and writes it to **stderr**, once. It is
 never accepted as a flag: argv is visible in `ps` and lands in shell history.

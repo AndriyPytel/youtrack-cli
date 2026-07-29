@@ -93,6 +93,7 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       { id: '2-1', login: 'root', fullName: 'Root' },
       { id: '2-3', login: 'alice', fullName: 'Alice' },
     ],
+    teams: { '0-0': ['2-1'] },
     counter: 100,
     refreshCount: 0,
     accepted: new Set([token, ...accessTokens]),
@@ -218,6 +219,15 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     const stateField = () => ({ field: { id: 'f-1', name: 'State' }, bundle: { $type: 'StateBundle', id: 'b-1', values: state.states } })
     const typeField = () => ({ field: { id: 'f-2', name: 'Type' }, bundle: { $type: 'EnumBundle', id: 'b-2', values: state.types } })
     const projectFields = { '0-0': () => [stateField(), typeField()], '0-1': () => [typeField()] }
+
+    const teamMatch = path.match(/^\/api\/admin\/projects\/([^/]+)\/team$/)
+    if (teamMatch) {
+      const members = state.teams[teamMatch[1]]
+      if (!members) return json(response, 404, { error: 'Not Found' })
+      if (request.method === 'POST') state.teams[teamMatch[1]] = body.ownUsers.map((user) => user.id)
+      const users = state.teams[teamMatch[1]].map((id) => state.users.find((user) => user.id === id))
+      return json(response, 200, { users, ownUsers: users })
+    }
 
     const projectArticles = path.match(/^\/api\/admin\/projects\/([^/]+)\/articles$/)
     if (projectArticles) {

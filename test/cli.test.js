@@ -292,6 +292,22 @@ test('yt project new resolves --leader and --org to database ids', async () => {
   assert.match(unknown.err, /No such organization: Missing Inc/)
 })
 
+test('yt project assign keeps the members already on the team', async () => {
+  assert.equal((await yt(['project', 'team', 'DEMO'])).out, 'root  Root\n')
+
+  const { code, out } = await yt(['project', 'assign', 'DEMO', 'alice'])
+  assert.equal(code, 0)
+  assert.equal(out, 'root\nalice\n')
+  assert.deepEqual(server.state.teams['0-0'], ['2-1', '2-3'])
+
+  await yt(['project', 'assign', 'DEMO', 'alice'])
+  assert.deepEqual(server.state.teams['0-0'], ['2-1', '2-3'])
+
+  const unknown = await yt(['project', 'assign', 'DEMO', 'nobody'])
+  assert.equal(unknown.code, 2)
+  assert.match(unknown.err, /No such user: nobody/)
+})
+
 test('yt org new creates an organization', async () => {
   assert.equal((await yt(['org', 'new', 'Globex', '-d', 'new one'])).out, 'Globex\n')
   assert.ok(server.state.organizations.some((organization) => organization.name === 'Globex'))

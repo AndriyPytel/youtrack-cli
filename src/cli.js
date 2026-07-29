@@ -28,6 +28,8 @@ const HELP = `yt — a thin YouTrack CLI
   yt type ls|add|edit|order <project> ...      the same, for issue types
     Both take --field NAME for instances that call the field something else.
   yt project new <shortName> <name> [-d desc] [--leader login] [--org name]
+  yt project team <shortName>                  the project team, one login per line
+  yt project assign <shortName> <login...>     add users to the project team
   yt org new <name> [-d description]           an organization to hold projects
   yt user new <login> [--name "Full Name"] [--email a@b.c]
     The password is generated and printed to stderr once; it is never a flag.

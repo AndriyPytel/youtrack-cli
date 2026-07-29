@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import { openSession } from '../session.js'
 import { parse, jsonFlag } from '../args.js'
-import { print, printJson } from '../render.js'
-import { organizationId, userId } from '../resolve.js'
+import { print, printJson, table, listStyle } from '../render.js'
+import { organizationId, projectId, userId } from '../resolve.js'
 import { CliError } from '../errors.js'
 
 async function projectNew(argv) {
@@ -35,6 +35,43 @@ async function projectNew(argv) {
   })
   if (values.json) return printJson(project)
   print(project.shortName)
+}
+
+const teamUrl = (id) => `/api/admin/projects/${id}/team`
+
+async function projectTeam(argv) {
+  const { values, positionals } = parse(argv, jsonFlag)
+  const [shortName] = positionals
+  if (!shortName) throw new CliError('Usage: yt project team <shortName>')
+
+  const { api } = await openSession()
+  const id = await projectId(api, shortName)
+  const team = await api.request(teamUrl(id), { query: { fields: 'users(login,fullName)', $top: 1000 } })
+  if (values.json) return printJson(team)
+  print(table((team.users || []).map((user) => [user.login, user.fullName || '']), listStyle))
+}
+
+async function projectAssign(argv) {
+  const { values, positionals } = parse(argv, jsonFlag)
+  const [shortName, ...logins] = positionals
+  if (!shortName || logins.length === 0) throw new CliError('Usage: yt project assign <shortName> <login...>')
+
+  const { api } = await openSession()
+  const id = await projectId(api, shortName)
+  const added = []
+  for (const login of logins) added.push(await userId(api, login))
+
+  // `ownUsers` is replaced wholesale, so the current members go back with the new ones.
+  const team = await api.request(teamUrl(id), { query: { fields: 'ownUsers(id)', $top: 1000 } })
+  const members = [...new Set([...(team.ownUsers || []).map((user) => user.id), ...added])]
+  const updated = await api.request(teamUrl(id), {
+    method: 'POST',
+    query: { fields: 'ownUsers(login)' },
+    body: { ownUsers: members.map((memberId) => ({ id: memberId })) },
+  })
+
+  if (values.json) return printJson(updated)
+  print((updated.ownUsers || []).map((user) => user.login).join('\n'))
 }
 
 async function orgNew(argv) {
@@ -81,6 +118,6 @@ const dispatch = (name, subcommands) => async (argv) => {
   return run(argv.slice(1))
 }
 
-export const project = dispatch('project', { new: projectNew })
+export const project = dispatch('project', { new: projectNew, team: projectTeam, assign: projectAssign })
 export const org = dispatch('org', { new: orgNew })
 export const user = dispatch('user', { new: userNew })

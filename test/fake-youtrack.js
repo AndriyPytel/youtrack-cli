@@ -40,7 +40,7 @@ async function readBody(request) {
  * token with 401, 404s unknown ids, and records every raw URL so tests can
  * assert on the query string that was actually sent.
  */
-export async function startFakeYouTrack({ token = 'test-token', accessTokens = [] } = {}) {
+export async function startFakeYouTrack({ token = 'test-token', accessTokens = [], ignoreSkip = false } = {}) {
   const requests = []
   const state = {
     issues: structuredClone(ISSUES),
@@ -94,6 +94,8 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       { id: '2-3', login: 'alice', fullName: 'Alice' },
     ],
     teams: { '0-0': ['2-1'] },
+    // Prepended to DEMO's custom fields, so a test can push State past a page boundary.
+    extraFields: [],
     counter: 100,
     refreshCount: 0,
     accepted: new Set([token, ...accessTokens]),
@@ -106,6 +108,18 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     const path = url.pathname
     const body = await readBody(request)
     requests.push({ method: request.method, url: request.url, path, body, authorization: request.headers.authorization })
+
+    /**
+     * `$top`/`$skip` as the real API applies them — to a top-level collection.
+     * With `ignoreSkip` the server accepts `$skip` and disregards it, which is
+     * what a paging loop with no identity guard turns into an endless one.
+     */
+    const paged = (items) => {
+      const top = url.searchParams.has('$top') ? Number(url.searchParams.get('$top')) : -1
+      const skip = ignoreSkip ? 0 : Number(url.searchParams.get('$skip') || 0)
+      const from = items.slice(skip)
+      return top < 0 ? from : from.slice(0, top)
+    }
 
     if (path === '/.well-known/oauth-protected-resource/mcp') {
       return json(response, 200, { resource: `${url.origin}/mcp`, scopes_supported: state.scopes })
@@ -134,14 +148,15 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
 
     if (path === '/api/users/me') return json(response, 200, { id: '2-1', login: 'root', fullName: 'Root' })
 
-    if (path === '/api/users' && request.method === 'GET') return json(response, 200, state.users)
+    if (path === '/api/users' && request.method === 'GET') return json(response, 200, paged(state.users))
     if (path === '/api/users' && request.method === 'POST') {
       const user = { id: `2-${state.users.length}`, ...body }
       state.users.push(user)
       return json(response, 200, user)
     }
 
-    if (path === '/api/admin/organizations' && request.method === 'GET') return json(response, 200, state.organizations)
+    if (path === '/api/admin/organizations' && request.method === 'GET')
+      return json(response, 200, paged(state.organizations))
     if (path === '/api/admin/organizations' && request.method === 'POST') {
       const organization = { id: `1-${state.organizations.length}`, ...body }
       state.organizations.push(organization)
@@ -165,7 +180,7 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     if (path === '/api/issues' && request.method === 'GET') {
       const query = url.searchParams.get('query')
       const issues = Object.values(state.issues).filter((issue) => !query || issue.summary.includes(query))
-      return json(response, 200, issues)
+      return json(response, 200, paged(issues))
     }
     if (path === '/api/issues' && request.method === 'POST') {
       const id = `DEMO-${(state.counter += 1)}`
@@ -184,7 +199,7 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
         if (body.description !== undefined) issue.description = body.description
         return json(response, 200, { idReadable: id })
       }
-      if (sub === 'comments' && request.method === 'GET') return json(response, 200, state.comments[id] || [])
+      if (sub === 'comments' && request.method === 'GET') return json(response, 200, paged(state.comments[id] || []))
       if (sub === 'comments' && request.method === 'POST') {
         const comment = { id: `${id}-c`, text: body.text, created: 1_700_000_100_000, author: { login: 'root' } }
         ;(state.comments[id] ??= []).push(comment)
@@ -208,7 +223,7 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       return json(response, 200, {})
     }
 
-    if (path === '/api/admin/projects' && request.method === 'GET') return json(response, 200, state.projects)
+    if (path === '/api/admin/projects' && request.method === 'GET') return json(response, 200, paged(state.projects))
     if (path === '/api/admin/projects' && request.method === 'POST') {
       if (!body.leader?.id) return json(response, 400, { error_description: 'leader is required' })
       const project = { id: `0-${state.projects.length}`, ...body }
@@ -218,7 +233,10 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
 
     const stateField = () => ({ field: { id: 'f-1', name: 'State' }, bundle: { $type: 'StateBundle', id: 'b-1', values: state.states } })
     const typeField = () => ({ field: { id: 'f-2', name: 'Type' }, bundle: { $type: 'EnumBundle', id: 'b-2', values: state.types } })
-    const projectFields = { '0-0': () => [stateField(), typeField()], '0-1': () => [typeField()] }
+    const projectFields = {
+      '0-0': () => [...state.extraFields, stateField(), typeField()],
+      '0-1': () => [typeField()],
+    }
 
     const teamMatch = path.match(/^\/api\/admin\/projects\/([^/]+)\/team$/)
     if (teamMatch) {
@@ -236,7 +254,7 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       return json(
         response,
         200,
-        Object.values(state.articles).filter((article) => article.project?.shortName === shortName),
+        paged(Object.values(state.articles).filter((article) => article.project?.shortName === shortName)),
       )
     }
 
@@ -244,7 +262,7 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     if (fieldsMatch) {
       const fields = projectFields[fieldsMatch[1]]
       if (!fields) return json(response, 404, { error: 'Not Found' })
-      return json(response, 200, fields())
+      return json(response, 200, paged(fields()))
     }
 
     // A bundle belongs to every project whose field instance points at it.
@@ -283,7 +301,7 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       shortName: state.projects.find((candidate) => candidate.id === project.id)?.shortName ?? 'DEMO',
     })
 
-    if (path === '/api/agiles' && request.method === 'GET') return json(response, 200, state.agiles)
+    if (path === '/api/agiles' && request.method === 'GET') return json(response, 200, paged(state.agiles))
     if (path === '/api/agiles' && request.method === 'POST') {
       // Like the real API: `presentation` is derived from the field values a
       // column holds. A column sent without them produces an unusable board.
@@ -313,7 +331,8 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       return json(response, 200, board)
     }
 
-    if (path === '/api/articles' && request.method === 'GET') return json(response, 200, Object.values(state.articles))
+    if (path === '/api/articles' && request.method === 'GET')
+      return json(response, 200, paged(Object.values(state.articles)))
     if (path === '/api/articles' && request.method === 'POST') {
       const id = `DEMO-A-${(state.counter += 1)}`
       state.articles[id] = { id: `3-${state.counter}`, idReadable: id, ...body }

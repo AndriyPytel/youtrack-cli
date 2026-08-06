@@ -34,7 +34,7 @@ async function ls(argv) {
   const path = values.project
     ? `/api/admin/projects/${await projectId(api, values.project)}/articles`
     : '/api/articles'
-  const articles = await api.request(path, { query: { fields: LIST_FIELDS, $top: 200 } })
+  const articles = await api.collect(path, { query: { fields: LIST_FIELDS } })
 
   const needle = values.grep?.toLowerCase()
   const found = needle ? articles.filter((article) => (article.summary ?? '').toLowerCase().includes(needle)) : articles

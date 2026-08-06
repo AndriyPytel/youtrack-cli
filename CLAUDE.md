@@ -49,6 +49,17 @@ Repository artifacts — code, comments, docs, commit messages, issues — are i
   the custom field is what reveals the reach.
 - State transitions are not data. They exist only as workflow JavaScript, so no
   REST call creates one. See ADR-0005.
+- **`$top` applies to a top-level collection only, and is ignored — not
+  rejected — on an endpoint that answers with an object.**
+  `/api/admin/projects/<id>/team` returns `{users, ownUsers}`;
+  `$top=1` on a two-member team returns both members. Measured 2026-08-07
+  against a live instance, on every project of it. So a `$top` there is dead
+  weight that reads like a limit, and there is no paging parameter for the
+  sub-collections either — sending none is the honest request. What the
+  measurement cannot say is whether the server caps those arrays for a team far
+  larger than any measured here; no team on the instance was big enough to tell.
+  Where `$top` *is* honoured, `$skip` pages correctly (`/api/users` measured the
+  same day), which is what `api.collect()` relies on.
 - **The entity docs lie about `User` and `Project`.** `POST /api/users` with
   `login` and `password` works, despite every `User` attribute being marked
   read-only. `Project` does have an `organization` attribute, despite it being

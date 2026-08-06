@@ -19,17 +19,32 @@ export async function ls(argv) {
     ...jsonFlag,
     ...fieldsFlag,
     top: { type: 'string' },
+    all: { type: 'boolean' },
   })
+  // Opposite intents; resolving them quietly would be one more guess made for the user.
+  if (values.all && values.top !== undefined) throw new CliError('Pass --top N or --all, not both.')
+  const window = values.top === undefined ? 50 : Number(values.top)
+  if (!Number.isInteger(window) || window < 1) {
+    throw new CliError(`--top takes a positive integer, not "${values.top}".`)
+  }
+
+  const query = {
+    query: positionals.join(' ') || undefined,
+    fields: values.fields || LIST_FIELDS,
+    // Repeated parameter — a comma-joined value returns an empty array.
+    customFields: values.fields ? undefined : ['State'],
+  }
   const { api } = await openSession()
-  const issues = await api.request('/api/issues', {
-    query: {
-      query: positionals.join(' ') || undefined,
-      fields: values.fields || LIST_FIELDS,
-      // Repeated parameter — a comma-joined value returns an empty array.
-      customFields: values.fields ? undefined : ['State'],
-      $top: values.top || 50,
-    },
-  })
+  // One row past the window: the extra is the only way truncation is noticed.
+  const fetched = values.all
+    ? await api.collect('/api/issues', { query })
+    : await api.request('/api/issues', { query: { ...query, $top: window + 1 } })
+  const issues = values.all ? fetched : fetched.slice(0, window)
+
+  // Diagnostics, not data — stdout stays byte-for-byte what the API answered.
+  if (fetched.length > issues.length) {
+    process.stderr.write(`${issues.length} shown, more matched — --top N for a wider window, --all for all of them\n`)
+  }
 
   if (values.json) return printJson(issues)
   print(
@@ -55,8 +70,8 @@ export async function view(argv) {
     notFound: `No such issue: ${id}`,
   })
   const comments = values.comments
-    ? await api.request(`/api/issues/${id}/comments`, {
-        query: { fields: COMMENT_FIELDS, $top: 200 },
+    ? await api.collect(`/api/issues/${id}/comments`, {
+        query: { fields: COMMENT_FIELDS },
         notFound: `No such issue: ${id}`,
       })
     : null

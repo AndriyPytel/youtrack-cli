@@ -2,7 +2,7 @@ import { CliError, EXIT } from './errors.js'
 
 /** The database id behind a name the user typed. */
 async function lookup(api, path, field, value, what) {
-  const items = await api.request(path, { query: { fields: `id,${field}`, $top: 1000 } })
+  const items = await api.collect(path, { query: { fields: `id,${field}` } })
   const found = items.find((item) => item[field] === value)
   if (!found) throw new CliError(`No such ${what}: ${value}`, EXIT.NOT_FOUND)
   return found.id
@@ -19,8 +19,8 @@ const BUNDLE_PATHS = { OwnedBundle: 'ownedField' }
 /** A named field of a project, the bundle behind it and the values already in it. */
 export async function fieldBundle(api, shortName, fieldName) {
   const id = await projectId(api, shortName)
-  const fields = await api.request(`/api/admin/projects/${id}/customFields`, {
-    query: { fields: 'field(id,name),bundle($type,id,values(id,name,ordinal,archived,isResolved))', $top: 200 },
+  const fields = await api.collect(`/api/admin/projects/${id}/customFields`, {
+    query: { fields: 'field(id,name),bundle($type,id,values(id,name,ordinal,archived,isResolved))' },
   })
   const found = fields.find((candidate) => candidate.field?.name === fieldName)
   if (!found?.bundle) {

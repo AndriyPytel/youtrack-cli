@@ -21,6 +21,7 @@ const HELP = `yt — a thin YouTrack CLI
   yt art ls|view|new|edit                     knowledge base, listed as a tree
     yt art ls [--project P] [--grep text]     --grep filters titles client-side
   yt board ls|new <project> <name> [--columns "A,B,C"]
+    yt board add|rm <project...> <board>      edit an existing board's project list
   yt state ls <project> [--all]               State values; --all shows archived too
   yt state add <project> <name> [--resolved] [--archived] [--after "Other"]
   yt state edit <project> <name> [--rename X] [--resolved|--no-resolved] [--archived|--no-archived]

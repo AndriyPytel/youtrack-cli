@@ -106,7 +106,16 @@ yt state order <project> "Open,In Progress,Fixed"
 yt type ls|add|edit|order <project> ...          the same, for issue types
 yt board ls
 yt board new <project> <name> [--columns "A,B,C"]
+yt board add <project...> <board>       put projects on a board that already exists
+yt board rm <project...> <board>        take them off again
 ```
+
+`yt board add|rm` names the board, never an id — `yt board ls` prints no id to
+copy. Board names are not unique in YouTrack, so a name matching several boards
+lists them and changes nothing. Both are idempotent, and `rm` refuses to leave a
+board with no projects at all. Board columns reference state values *by name*, so
+adding a project whose states do not cover every column still succeeds, and the
+columns that stay empty for it are named on stderr.
 
 `state` and `type` are one command under two names; `--field NAME` points either
 of them at a field this instance calls something else. Values can be added,

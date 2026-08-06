@@ -172,8 +172,8 @@ function valueCommands(alias, defaultField) {
 async function boardLs(argv) {
   const { values } = parse(argv, jsonFlag)
   const { api } = await openSession()
-  const boards = await api.request('/api/agiles', {
-    query: { fields: 'id,name,projects(shortName),columnSettings(field(name),columns(presentation))', $top: 200 },
+  const boards = await api.collect('/api/agiles', {
+    query: { fields: 'id,name,projects(shortName),columnSettings(field(name),columns(presentation))' },
   })
   if (values.json) return printJson(boards)
   print(
@@ -263,8 +263,8 @@ function boardEdit(mode) {
     if (shortNames.length === 0) throw new CliError(`Usage: yt board ${mode} <project...> <board>`)
 
     const { api } = await openSession()
-    const boards = await api.request('/api/agiles', {
-      query: { fields: 'id,name,projects(id,shortName),columnSettings(columns(fieldValues(name)))', $top: 200 },
+    const boards = await api.collect('/api/agiles', {
+      query: { fields: 'id,name,projects(id,shortName),columnSettings(columns(fieldValues(name)))' },
     })
 
     // Board names are not unique in YouTrack, and `yt board ls` prints no id to copy.

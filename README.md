@@ -46,7 +46,7 @@ yt logout                         clear the stored credential
 ### Issues
 
 ```
-yt ls [query] [--fields F] [--top N]    YouTrack query syntax; state included by default
+yt ls [query] [--fields F] [--top N] [--all]   YouTrack query syntax; state included
 yt view <id> [--comments]
 yt new <project> <summary> [-d text | -f file]     -d and -f omitted: read stdin
 yt edit <id> [-s summary] [-d text | -f file]      summary and/or description
@@ -61,6 +61,17 @@ body never has to survive shell quoting:
 yt new DEMO "Rework the export" -f draft.md
 git log -1 --format=%B | yt edit DEMO-42
 ```
+
+`yt ls` shows 50 issues. When more matched, it says so on **stderr** — stdout
+stays exactly the rows, so `yt ls | wc -l` and `yt ls --json | jq` are unaffected
+by the warning, and nothing is silently cut without a word. `--top N` widens the
+window; `--all` pages through every match and prints no warning at all (with
+`--json`, one flat array). `--all` and `--top` together are a usage error.
+
+Every other list — `yt view --comments`, `yt art ls`, `yt board ls`,
+`yt project team` — is exhaustive without asking, and so is every name lookup
+behind the scenes. A truncated list a decision is made from is not a short
+answer, it is a wrong one.
 
 ### Every other mutation
 

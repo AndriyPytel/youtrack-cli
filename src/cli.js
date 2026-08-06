@@ -11,7 +11,7 @@ const HELP = `yt — a thin YouTrack CLI
 
   yt login [--token] [--url URL] [--status]   browser OAuth; credential to the keychain
   yt logout                                   clear the stored credential
-  yt ls [query] [--fields F] [--json]         list issues with their state
+  yt ls [query] [--fields F] [--top N] [--all]   issues with their state; 50 a page
   yt view <id> [--comments]
   yt new <project> <summary> [-d description | -f file]    -d/-f omitted: stdin
   yt edit <id> [-s summary] [-d description | -f file]

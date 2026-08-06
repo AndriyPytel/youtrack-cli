@@ -46,7 +46,8 @@ async function projectTeam(argv) {
 
   const { api } = await openSession()
   const id = await projectId(api, shortName)
-  const team = await api.request(teamUrl(id), { query: { fields: 'users(login,fullName)', $top: 1000 } })
+  // No `$top`: /team answers with an object, and `$top` on one is ignored, not honoured.
+  const team = await api.request(teamUrl(id), { query: { fields: 'users(login,fullName)' } })
   if (values.json) return printJson(team)
   print(table((team.users || []).map((user) => [user.login, user.fullName || '']), listStyle))
 }
@@ -62,7 +63,8 @@ async function projectAssign(argv) {
   for (const login of logins) added.push(await userId(api, login))
 
   // `ownUsers` is replaced wholesale, so the current members go back with the new ones.
-  const team = await api.request(teamUrl(id), { query: { fields: 'ownUsers(id)', $top: 1000 } })
+  // A `$top` here would be data loss if it ever applied; it does not, so it is gone.
+  const team = await api.request(teamUrl(id), { query: { fields: 'ownUsers(id)' } })
   const members = [...new Set([...(team.ownUsers || []).map((user) => user.id), ...added])]
   const updated = await api.request(teamUrl(id), {
     method: 'POST',

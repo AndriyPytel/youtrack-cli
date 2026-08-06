@@ -224,11 +224,12 @@ export async function cmd(argv) {
       query: { fields: 'commands(description,error),suggestions(option)' },
       body,
     })
-    if (values.json) return printJson(assist)
     const rejected = (assist.commands || []).filter((entry) => entry.error)
+    if (values.json) printJson(assist)
     if (rejected.length > 0) {
       throw new CliError(stripMarkup(rejected.map((entry) => entry.description).join('; ')), EXIT.REJECTED)
     }
+    if (values.json) return
     return print((assist.commands || []).map((entry) => stripMarkup(entry.description)).join('\n'))
   }
 

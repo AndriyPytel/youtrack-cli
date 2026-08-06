@@ -184,6 +184,16 @@ test('a rejected command exits 3 with the markup stripped', async () => {
   assert.equal((await yt(['cmd', 'DEMO-1', 'nonsense here'])).code, 3)
 })
 
+test('a rejected dry run exits 3 in JSON mode too, with the payload still printed', async () => {
+  const dry = await yt(['cmd', 'DEMO-1', 'nonsense here', '--dry-run', '--json'])
+  assert.equal(dry.code, 3)
+  assert.equal(JSON.parse(dry.out).commands[0].error, true)
+
+  const accepted = await yt(['cmd', 'DEMO-1', 'state Done', '--dry-run', '--json'])
+  assert.equal(accepted.code, 0)
+  assert.equal(JSON.parse(accepted.out).commands[0].error, false)
+})
+
 test('yt cmd --help carries worked examples', async () => {
   const { out } = await yt(['cmd', '--help'])
   for (const example of ['state In Progress', 'assignee me', 'tag urgent', 'Fix versions', 'relates to', '--as']) {

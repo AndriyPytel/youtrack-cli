@@ -1,7 +1,7 @@
 import { openSession } from '../session.js'
 import { parse, jsonFlag } from '../args.js'
 import { table, print, printJson, listStyle } from '../render.js'
-import { fieldBundle, bundleProjects, stateBundle } from '../resolve.js'
+import { fieldBundle, bundleProjects, stateBundle, projectId } from '../resolve.js'
 import { CliError, EXIT } from '../errors.js'
 
 const fieldFlag = { field: { type: 'string' } }
@@ -236,13 +236,87 @@ async function boardNew(argv) {
   print(`${board.name ?? name.join(' ')} created with columns: ${wanted.join(', ')}`)
 }
 
-const boardCommands = { ls: boardLs, new: boardNew }
+/** Columns reference state values by name, so a project without them gets dead columns. */
+async function warnColumns(api, board, shortName) {
+  const columns = (board.columnSettings?.columns || []).flatMap((column) =>
+    (column.fieldValues || []).map((value) => value.name),
+  )
+  const states = await stateBundle(api, shortName).then(
+    (bundle) => bundle.values.map((value) => value.name),
+    (error) => {
+      if (error.code === EXIT.NOT_FOUND) return []
+      throw error
+    },
+  )
+  const missing = [...new Set(columns.filter((column) => !states.includes(column)))]
+  if (missing.length > 0) {
+    process.stderr.write(`${shortName} has no state ${quote(missing)} — those board columns stay empty for it\n`)
+  }
+}
+
+/** `add` and `rm` are one read-modify-write of the board's project list. */
+function boardEdit(mode) {
+  return async function run(argv) {
+    const { values, positionals } = parse(argv, jsonFlag)
+    const name = positionals.at(-1)
+    const shortNames = positionals.slice(0, -1)
+    if (shortNames.length === 0) throw new CliError(`Usage: yt board ${mode} <project...> <board>`)
+
+    const { api } = await openSession()
+    const boards = await api.request('/api/agiles', {
+      query: { fields: 'id,name,projects(id,shortName),columnSettings(columns(fieldValues(name)))', $top: 200 },
+    })
+
+    // Board names are not unique in YouTrack, and `yt board ls` prints no id to copy.
+    const matches = boards.filter((board) => board.name === name)
+    if (matches.length === 0) throw new CliError(`No such board: ${name}`, EXIT.NOT_FOUND)
+    if (matches.length > 1) {
+      throw new CliError(
+        `${matches.length} boards are named "${name}":\n` +
+          matches.map((board) => `  projects: ${(board.projects || []).map((p) => p.shortName).join(', ')}`).join('\n') +
+          '\nRename one of them so the name points at a single board.',
+        EXIT.REJECTED,
+      )
+    }
+
+    const board = matches[0]
+    const current = board.projects || []
+    const wanted = []
+    for (const shortName of shortNames) wanted.push({ shortName, id: await projectId(api, shortName) })
+
+    const on = (project) => current.some((existing) => existing.id === project.id)
+    const changed = wanted.filter((project) => (mode === 'add' ? !on(project) : on(project)))
+    const after =
+      mode === 'add'
+        ? [...current, ...changed]
+        : current.filter((existing) => !changed.some((project) => project.id === existing.id))
+    // An empty board is either a 400 or a dead board `yt` cannot delete, so the refusal is ours.
+    if (after.length === 0) throw new CliError('a board must keep at least one project', EXIT.REJECTED)
+
+    if (mode === 'add') for (const project of wanted) await warnColumns(api, board, project.shortName)
+
+    const updated = await api.request(`/api/agiles/${board.id}`, {
+      method: 'POST',
+      query: { fields: 'id,name,projects(shortName)' },
+      body: { projects: after.map((project) => ({ id: project.id })) },
+    })
+
+    if (values.json) return printJson(updated)
+    const done = changed.length > 0
+    const verb = mode === 'add' ? (done ? 'added to' : 'already on') : done ? 'removed from' : 'not on'
+    const subject = (done ? changed : wanted).map((project) => project.shortName).join(', ')
+    const projects = (updated.projects || after).map((project) => project.shortName).join(', ')
+    print(`${subject} ${verb} "${board.name}" — projects: ${projects}`)
+  }
+}
+
+const boardCommands = { ls: boardLs, new: boardNew, add: boardEdit('add'), rm: boardEdit('rm') }
 
 export const state = valueCommands('state', 'State')
 export const type = valueCommands('type', 'Type')
 
 export async function board(argv) {
   const run = boardCommands[argv[0]]
-  if (!run) throw new CliError('Usage: yt board ls|new <project> <name> [--columns "A,B,C"]')
+  if (!run) throw new CliError('Usage: yt board ls|new|add|rm <project...> <name> [--columns "A,B,C"]')
   return run(argv.slice(1))
 }

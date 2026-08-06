@@ -459,6 +459,77 @@ test('yt board new refuses an archived state named explicitly, before creating a
   assert.equal(server.state.agiles.length, before)
 })
 
+test('yt board add puts a project on an existing board, and says so again on a repeat', async () => {
+  const added = await yt(['board', 'add', 'OPS', 'Sprint'])
+  assert.equal(added.code, 0)
+  assert.equal(added.out, 'OPS added to "Sprint" — projects: DEMO, OPS\n')
+  assert.match(added.err, /OPS.*Open.*Done/, 'columns the project has no state for are named on stderr')
+
+  const again = await yt(['board', 'add', 'OPS', 'Sprint'])
+  assert.equal(again.code, 0)
+  assert.equal(again.out, 'OPS already on "Sprint" — projects: DEMO, OPS\n')
+})
+
+test('yt board rm takes a project off, and refuses to empty the board', async () => {
+  const removed = await yt(['board', 'rm', 'OPS', 'Sprint'])
+  assert.equal(removed.code, 0)
+  assert.equal(removed.out, 'OPS removed from "Sprint" — projects: DEMO\n')
+  assert.equal(removed.err, '', 'rm never warns about columns')
+
+  const again = await yt(['board', 'rm', 'OPS', 'Sprint'])
+  assert.equal(again.code, 0)
+  assert.equal(again.out, 'OPS not on "Sprint" — projects: DEMO\n')
+
+  const last = await yt(['board', 'rm', 'DEMO', 'Sprint'])
+  assert.equal(last.code, 3)
+  assert.match(last.err, /a board must keep at least one project/)
+  assert.deepEqual(
+    server.state.agiles.find((board) => board.name === 'Sprint').projects.map((project) => project.shortName),
+    ['DEMO'],
+  )
+})
+
+test('yt board add takes several projects in one call', async () => {
+  await yt(['project', 'new', 'ACME', 'Acme'])
+  const { code, out } = await yt(['board', 'add', 'ACME', 'OPS', 'Everything'])
+  assert.equal(code, 0)
+  assert.equal(out, 'ACME, OPS added to "Everything" — projects: DEMO, ACME, OPS\n')
+})
+
+test('yt board add --json writes the raw response and no summary line', async () => {
+  const { code, out } = await yt(['board', 'add', 'OPS', 'Sprint', '--json'])
+  assert.equal(code, 0)
+  const board = JSON.parse(out)
+  assert.deepEqual(
+    board.projects.map((project) => project.shortName),
+    ['DEMO', 'OPS'],
+  )
+  await yt(['board', 'rm', 'OPS', 'Sprint'])
+})
+
+test('yt board add refuses an unknown board without mutating anything', async () => {
+  const before = structuredClone(server.state.agiles)
+  const { code, err } = await yt(['board', 'add', 'OPS', 'No Such Board'])
+  assert.equal(code, 2)
+  assert.match(err, /No Such Board/)
+  assert.deepEqual(server.state.agiles, before)
+})
+
+test('yt board add|rm needs both a project and a board', async () => {
+  assert.equal((await yt(['board', 'add', 'Sprint'])).code, 4)
+  assert.equal((await yt(['board', 'rm', 'Sprint'])).code, 4)
+  assert.match((await yt(['board'])).err, /add\|rm/)
+})
+
+test('two boards of the same name are listed, not guessed between', async () => {
+  await yt(['board', 'new', 'DEMO', 'Sprint', '--columns', 'Open,Done'])
+  const before = structuredClone(server.state.agiles)
+  const { code, err } = await yt(['board', 'add', 'OPS', 'Sprint'])
+  assert.equal(code, 3)
+  assert.match(err, /Sprint.*DEMO/s)
+  assert.deepEqual(server.state.agiles, before)
+})
+
 test('yt help and an unknown command', async () => {
   assert.match((await yt(['help'])).out, /yt cmd <id\.\.\.>/)
   assert.equal((await yt(['nope'])).code, 4)

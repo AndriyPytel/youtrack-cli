@@ -278,6 +278,11 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       return json(response, 200, value)
     }
 
+    const named = (project) => ({
+      ...project,
+      shortName: state.projects.find((candidate) => candidate.id === project.id)?.shortName ?? 'DEMO',
+    })
+
     if (path === '/api/agiles' && request.method === 'GET') return json(response, 200, state.agiles)
     if (path === '/api/agiles' && request.method === 'POST') {
       // Like the real API: `presentation` is derived from the field values a
@@ -293,9 +298,18 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
         id: `a-${state.agiles.length + 1}`,
         ...body,
         columnSettings: { ...body.columnSettings, columns },
-        projects: (body.projects || []).map((project) => ({ ...project, shortName: 'DEMO' })),
+        projects: (body.projects || []).map(named),
       }
       state.agiles.push(board)
+      return json(response, 200, board)
+    }
+
+    const agileMatch = path.match(/^\/api\/agiles\/([^/]+)$/)
+    if (agileMatch && request.method === 'POST') {
+      const board = state.agiles.find((candidate) => candidate.id === agileMatch[1])
+      if (!board) return json(response, 404, { error: 'Not Found' })
+      if (body.projects?.length === 0) return json(response, 400, { error_description: 'projects is required' })
+      if (body.projects) board.projects = body.projects.map(named)
       return json(response, 200, board)
     }
 

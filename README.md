@@ -98,7 +98,7 @@ yt cmd DEMO-42 "state Frozen" --dry-run  validate syntax *and* values, apply not
 yt art ls [--project P] [--grep text]   an indented tree, ordered as YouTrack orders it
 yt art view <id>
 yt art new <project> <title> [-f file | -c text] [--parent <id>]
-yt art edit <id> [-f file | -c text]
+yt art edit <id> [-s title] [-f file | -c text]
 ```
 
 `--project` is served by the per-project endpoint, so the result is complete

@@ -267,6 +267,27 @@ test('yt edit -s alone does not consume stdin, and an empty edit still fails', a
   assert.match(empty.err, /Nothing to change/)
 })
 
+test('yt art edit -s renames without touching the content, and does not consume stdin', async () => {
+  const untouched = server.state.articles['DEMO-A-1'].content
+  const { code } = await yt(['art', 'edit', 'DEMO-A-1', '-s', 'Renamed'], { input: 'must be ignored' })
+  assert.equal(code, 0)
+  assert.equal(server.state.articles['DEMO-A-1'].summary, 'Renamed')
+  assert.equal(server.state.articles['DEMO-A-1'].content, untouched)
+
+  const both = await yt(['art', 'edit', 'DEMO-A-1', '-s', 'Renamed twice', '-c', 'new body'])
+  assert.equal(both.code, 0)
+  assert.equal(server.state.articles['DEMO-A-1'].summary, 'Renamed twice')
+  assert.equal(server.state.articles['DEMO-A-1'].content, 'new body')
+
+  const empty = await yt(['art', 'edit', 'DEMO-A-1'])
+  assert.equal(empty.code, 4)
+  assert.match(empty.err, /Nothing to change/)
+
+  const missing = await yt(['art', 'edit', 'DEMO-A-404', '-s', 'x'])
+  assert.equal(missing.code, 2)
+  assert.match(missing.err, /No such article: DEMO-A-404/)
+})
+
 test('yt art new --parent resolves the readable id to the internal one', async () => {
   const { code, out } = await yt(['art', 'new', 'DEMO', 'Child', '-c', 'x', '--parent', 'DEMO-A-1'])
   assert.equal(code, 0)

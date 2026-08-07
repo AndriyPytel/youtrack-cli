@@ -1,5 +1,5 @@
 import { openSession } from '../session.js'
-import { parse, jsonFlag, fileFlag, textArg } from '../args.js'
+import { parse, jsonFlag, fileFlag, textArg, optionalText } from '../args.js'
 import { table, print, printJson, cyan } from '../render.js'
 import { projectId } from '../resolve.js'
 import { CliError } from '../errors.js'
@@ -94,15 +94,23 @@ async function edit(argv) {
     ...jsonFlag,
     ...fileFlag,
     content: { type: 'string', short: 'c' },
+    summary: { type: 'string', short: 's' },
   })
   const id = positionals[0]
-  if (!id) throw new CliError('Usage: yt art edit <id> [-f file]')
+  if (!id) throw new CliError('Usage: yt art edit <id> [-s summary] [-f file | -c text]')
+
+  // -s alone is already a complete change; don't reach for a body nobody asked to set.
+  const wanted = values.content !== undefined || values.file !== undefined || values.summary === undefined
+  const content = wanted ? optionalText(values.file, values.content) : undefined
+  if (values.summary === undefined && content === undefined) {
+    throw new CliError('Nothing to change: pass -s and/or -c.')
+  }
 
   const { api } = await openSession()
   const article = await api.request(`/api/articles/${id}`, {
     method: 'POST',
     query: { fields: 'idReadable' },
-    body: { content: textArg(values.file, values.content) },
+    body: { summary: values.summary, content },
     notFound: `No such article: ${id}`,
   })
   if (values.json) return printJson(article)

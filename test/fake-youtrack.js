@@ -342,7 +342,10 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     if (articleMatch) {
       const article = state.articles[articleMatch[1]]
       if (!article) return json(response, 404, { error: 'Not Found' })
-      if (request.method === 'POST') article.content = body.content
+      if (request.method === 'POST') {
+        if (body.summary !== undefined) article.summary = body.summary
+        if (body.content !== undefined) article.content = body.content
+      }
       return json(response, 200, article)
     }
 

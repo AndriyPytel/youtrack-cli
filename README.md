@@ -122,6 +122,12 @@ yt state edit <project> <name> [--rename X] [--resolved|--no-resolved]
                                         [--archived|--no-archived]
 yt state order <project> "Open,In Progress,Fixed"
 yt type ls|add|edit|order <project> ...          the same, for issue types
+yt field ls <project> <field> [--all]   the value set of any field, named as an argument
+yt field add <project> <field> <name> [--description X] [--after "Other"]
+yt field edit <project> <field> <name> [--rename X] [--description X]
+yt field order <project> <field> "First,Second,Third"
+                                        a version field also takes --release-date
+                                        2026-09-01 and --released|--no-released
 yt board ls
 yt board new <project> <name> [--columns "A,B,C"]
 yt board add <project...> <board>       put projects on a board that already exists
@@ -157,9 +163,25 @@ board with no projects at all. Board columns reference state values *by name*, s
 adding a project whose states do not cover every column still succeeds, and the
 columns that stay empty for it are named on stderr.
 
-`state` and `type` are one command under two names; `--field NAME` points either
-of them at a field this instance calls something else. Values can be added,
-renamed, reordered, archived, and — for states — marked as resolving the issue.
+`state`, `type` and `field` are one command under three names: the first two fix
+the field they work on, `field` takes it as an argument and so reaches any field
+backed by a value set — `Subsystem`, `Fix versions`, `Fixed in build`, or a
+`State` this instance calls something else. Values can be added, renamed,
+reordered, archived, described, and — for states — marked as resolving the issue.
+
+```
+yt field add DEMO Subsystem "CLI" --description "the command line client"
+yt field order DEMO Subsystem "CLI,Docs"
+yt field add DEMO "Fix versions" 1.0.0 --release-date 2026-09-01
+yt field edit DEMO "Fix versions" 1.0.0 --released
+```
+
+`--description` is taken by every field, because it lives on the value type they
+all share. `--released` and `--release-date` belong to version values alone and
+are refused elsewhere, the way `--resolved` is refused outside `State`. There is
+no `--field` flag: `yt field ls DEMO Status` is how an instance that renamed its
+`State` field is reached, and passing the old flag says so.
+
 Deleting is deliberately absent: archiving hides a value without touching the
 issues that already carry it.
 

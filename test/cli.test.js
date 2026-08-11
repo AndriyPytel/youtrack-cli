@@ -478,6 +478,66 @@ test('yt state order refuses a name the project does not have', async () => {
   assert.match(err, /no State "Nowhere"/)
 })
 
+test('yt field manages any value-set field, naming it where State and Type are implied', async () => {
+  assert.equal((await yt(['field', 'ls', 'DEMO', 'Subsystem'])).code, 0)
+  assert.equal((await yt(['field', 'ls', 'DEMO', 'Subsystem'])).out, '')
+  assert.equal((await yt(['field', 'ls', 'DEMO', 'State'])).out, (await yt(['state', 'ls', 'DEMO'])).out)
+})
+
+test('yt field add|edit|order does for a subsystem what yt state does for a state', async () => {
+  assert.equal((await yt(['field', 'add', 'DEMO', 'Subsystem', 'CLI'])).out, 'DEMO Subsystem added: CLI\n')
+  await yt(['field', 'add', 'DEMO', 'Subsystem', 'Docs'])
+  assert.equal((await yt(['field', 'ls', 'DEMO', 'Subsystem'])).out, 'CLI\nDocs\n')
+
+  await yt(['field', 'edit', 'DEMO', 'Subsystem', 'CLI', '--rename', 'CLI core'])
+  await yt(['field', 'order', 'DEMO', 'Subsystem', 'Docs,CLI core'])
+  assert.equal((await yt(['field', 'ls', 'DEMO', 'Subsystem'])).out, 'Docs\nCLI core\n')
+  // OwnedBundle is the one bundle whose url segment is not its type — a wrong one would 404.
+  assert.ok(server.requests.some((entry) => entry.path.startsWith('/api/admin/customFieldSettings/bundles/ownedField/')))
+})
+
+test('a version takes a release date and a description, and is released or unreleased afterwards', async () => {
+  const added = await yt([
+    'field', 'add', 'DEMO', 'Fix versions', '1.0.0',
+    '--release-date', '2026-09-01',
+    '--description', 'the first release',
+  ])
+  assert.equal(added.code, 0)
+
+  const listed = JSON.parse((await yt(['field', 'ls', 'DEMO', 'Fix versions', '--json'])).out)
+  assert.equal(listed[0].description, 'the first release')
+  assert.equal(listed[0].releaseDate, Date.parse('2026-09-01'))
+
+  await yt(['field', 'edit', 'DEMO', 'Fix versions', '1.0.0', '--released'])
+  assert.equal(server.state.versions[0].released, true)
+  await yt(['field', 'edit', 'DEMO', 'Fix versions', '1.0.0', '--no-released'])
+  assert.equal(server.state.versions[0].released, false)
+})
+
+test('--released is rejected outside a version field, while --description is taken by any of them', async () => {
+  const released = await yt(['field', 'add', 'DEMO', 'Subsystem', 'X', '--released'])
+  assert.notEqual(released.code, 0)
+  assert.match(released.err, /version/)
+  assert.ok(!server.state.subsystems.some((value) => value.name === 'X'), 'and nothing was created on the way')
+
+  const described = await yt(['field', 'edit', 'DEMO', 'Type', 'Bug', '--description', 'something broke'])
+  assert.equal(described.code, 0)
+  assert.equal(server.state.types.find((value) => value.name === 'Bug').description, 'something broke')
+})
+
+test('--field is gone, and the refusal names yt field rather than leaving parseArgs to answer', async () => {
+  const { code, err } = await yt(['state', 'ls', 'DEMO', '--field', 'Subsystem'])
+  assert.notEqual(code, 0)
+  assert.doesNotMatch(err, /Unknown option/)
+  assert.match(err, /yt field ls DEMO Subsystem/)
+})
+
+test('yt help documents yt field and mentions --field nowhere', async () => {
+  const { out } = await yt(['help'])
+  assert.match(out, /yt field ls\|add\|edit\|order <project> <field>/)
+  assert.ok(!out.includes('--field '), 'the flag is gone from the help too')
+})
+
 test('yt board new refuses a column with no matching state, before creating anything', async () => {
   const before = server.state.agiles.length
   const { code, err } = await yt(['board', 'new', 'DEMO', 'Sprint', '--columns', 'Open,Nowhere'])

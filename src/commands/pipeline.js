@@ -4,18 +4,24 @@ import { table, print, printJson, listStyle } from '../render.js'
 import { fieldBundle, bundleProjects, stateBundle, projectId } from '../resolve.js'
 import { CliError, EXIT } from '../errors.js'
 
-const fieldFlag = { field: { type: 'string' } }
 // parseArgs has no `--no-x` negation, so the off switches are their own flags.
 const editFlags = {
   resolved: { type: 'boolean' },
   'no-resolved': { type: 'boolean' },
   archived: { type: 'boolean' },
   'no-archived': { type: 'boolean' },
+  released: { type: 'boolean' },
+  'no-released': { type: 'boolean' },
+  'release-date': { type: 'string' },
+  description: { type: 'string' },
 }
 
 const valuesUrl = (bundle) => `/api/admin/customFieldSettings/bundles/${bundle.bundlePath}/${bundle.bundleId}/values`
 
-const marks = (value) => [value.isResolved && 'resolved', value.archived && 'archived'].filter(Boolean).join(' ')
+const marks = (value) =>
+  [value.isResolved && 'resolved', value.released && 'released', value.archived && 'archived']
+    .filter(Boolean)
+    .join(' ')
 
 const quote = (names) => names.map((name) => `"${name}"`).join(', ')
 
@@ -34,6 +40,21 @@ function resolvedFlag(flags, bundle, field) {
   return flags.resolved ? true : false
 }
 
+/** `released` and `releaseDate` exist on version values and nowhere else. */
+function versionBody(flags, bundle, field) {
+  const released = flags.released === undefined && flags['no-released'] === undefined ? undefined : !!flags.released
+  const date = flags['release-date']
+  if (released === undefined && date === undefined) return {}
+  if (bundle.bundlePath !== 'version') {
+    throw new CliError(
+      `--released and --release-date apply to version values only; ${field} is a ${bundle.bundlePath} field.`,
+    )
+  }
+  const millis = date === undefined ? undefined : Date.parse(date)
+  if (Number.isNaN(millis)) throw new CliError(`--release-date takes a date like 2026-09-01, not "${date}".`)
+  return { ...(released === undefined ? {} : { released }), ...(millis === undefined ? {} : { releaseDate: millis }) }
+}
+
 /** Writes ordinals so the bundle reads in the given order, skipping values already in place. */
 async function applyOrder(api, bundle, sequence) {
   for (const [ordinal, value] of sequence.entries()) {
@@ -47,24 +68,33 @@ async function applyOrder(api, bundle, sequence) {
 }
 
 /**
- * One implementation, two names: `yt state` and `yt type` differ only in which
- * field they default to. `--field` covers instances that name it something else.
+ * One implementation, three names: `yt state` and `yt type` fix the field they
+ * work on, `yt field` takes it as the positional right after the project.
  */
 function valueCommands(alias, defaultField) {
+  const slot = defaultField ? '' : ' <field>'
   const usage = (form) => new CliError(`Usage: yt ${alias} ${form}`)
 
   async function open(argv, options) {
-    const { values: flags, positionals } = parse(argv, { ...jsonFlag, ...fieldFlag, ...options })
+    const { values: flags, positionals } = parse(argv, { ...jsonFlag, ...options })
     const [project, ...rest] = positionals
-    const field = flags.field || defaultField
-    if (!project) throw usage('ls|add|edit|order <project> ...')
+    const field = defaultField ?? rest.shift()
+    if (!project || !field) throw usage(`ls|add|edit|order <project>${slot} ...`)
     const { api } = await openSession()
     return { api, flags, project, field, rest, bundle: await fieldBundle(api, project, field) }
   }
 
   async function ls(argv) {
-    const { flags, bundle } = await open(argv, { all: { type: 'boolean' } })
-    const shown = flags.all ? bundle.values : bundle.values.filter((value) => !value.archived)
+    const { api, flags, bundle } = await open(argv, { all: { type: 'boolean' } })
+    // `released`/`releaseDate` live on version values alone, so asking for them in
+    // the bundle projection would break every other field. Versions get their own read.
+    const values =
+      bundle.bundlePath === 'version'
+        ? await api.collect(valuesUrl(bundle), {
+            query: { fields: 'id,name,ordinal,archived,description,released,releaseDate' },
+          })
+        : bundle.values
+    const shown = flags.all ? values : values.filter((value) => !value.archived)
     if (flags.json) return printJson(shown)
     print(table(shown.map((value) => [value.name ?? '', marks(value)]), listStyle))
   }
@@ -75,7 +105,7 @@ function valueCommands(alias, defaultField) {
       after: { type: 'string' },
     })
     const name = rest.join(' ')
-    if (!name) throw usage(`add <project> <name> [--resolved] [--archived] [--after "Other"]`)
+    if (!name) throw usage(`add <project>${slot} <name> [--resolved] [--archived] [--description X] [--after "Other"]`)
 
     const clash = bundle.values.find((value) => value.name === name)
     if (clash) {
@@ -94,7 +124,13 @@ function valueCommands(alias, defaultField) {
     const added = await api.request(valuesUrl(bundle), {
       method: 'POST',
       query: { fields: 'id,name' },
-      body: { name, ...(resolved === undefined ? {} : { isResolved: resolved }), ...(flags.archived && { archived: true }) },
+      body: {
+        name,
+        ...(resolved === undefined ? {} : { isResolved: resolved }),
+        ...(flags.archived && { archived: true }),
+        ...(flags.description === undefined ? {} : { description: flags.description }),
+        ...versionBody(flags, bundle, field),
+      },
     })
 
     if (flags.after) {
@@ -113,7 +149,12 @@ function valueCommands(alias, defaultField) {
       rename: { type: 'string' },
     })
     const name = rest.join(' ')
-    if (!name) throw usage(`edit <project> <name> [--rename X] [--resolved|--no-resolved] [--archived|--no-archived]`)
+    if (!name) {
+      throw usage(
+        `edit <project>${slot} <name> [--rename X] [--description X] ` +
+          `[--resolved|--no-resolved] [--archived|--no-archived] [--released|--no-released] [--release-date D]`,
+      )
+    }
 
     const value = bundle.values.find((candidate) => candidate.name === name)
     if (!value) throw new CliError(`Project ${project} has no ${field} "${name}".`, EXIT.NOT_FOUND)
@@ -121,11 +162,16 @@ function valueCommands(alias, defaultField) {
     const resolved = resolvedFlag(flags, bundle, field)
     const body = {}
     if (flags.rename) body.name = flags.rename
+    if (flags.description !== undefined) body.description = flags.description
     if (resolved !== undefined) body.isResolved = resolved
     if (flags.archived) body.archived = true
     if (flags['no-archived']) body.archived = false
+    Object.assign(body, versionBody(flags, bundle, field))
     if (Object.keys(body).length === 0) {
-      throw new CliError('Nothing to change: pass --rename, --resolved/--no-resolved or --archived/--no-archived.')
+      throw new CliError(
+        'Nothing to change: pass --rename, --description, --resolved/--no-resolved, ' +
+          '--archived/--no-archived, --released/--no-released or --release-date.',
+      )
     }
 
     const updated = await api.request(`${valuesUrl(bundle)}/${value.id}`, {
@@ -145,7 +191,7 @@ function valueCommands(alias, defaultField) {
       .split(',')
       .map((name) => name.trim())
       .filter(Boolean)
-    if (wanted.length === 0) throw usage('order <project> "First,Second,Third"')
+    if (wanted.length === 0) throw usage(`order <project>${slot} "First,Second,Third"`)
 
     const missing = wanted.filter((name) => !bundle.values.some((value) => value.name === name))
     if (missing.length > 0) throw new CliError(`Project ${project} has no ${field} ${quote(missing)}.`)
@@ -164,7 +210,16 @@ function valueCommands(alias, defaultField) {
   const subcommands = { ls, add, edit, order }
   return async function run(argv) {
     const subcommand = subcommands[argv[0]]
-    if (!subcommand) throw usage('ls|add|edit|order <project> ...')
+    if (!subcommand) throw usage(`ls|add|edit|order <project>${slot} ...`)
+    // The flag is gone; parseArgs would only say "Unknown option", which teaches nothing.
+    const stale = argv.findIndex((argument) => argument === '--field' || argument.startsWith('--field='))
+    if (stale > -1) {
+      const named = argv[stale].split('=')[1] ?? argv[stale + 1] ?? '<field>'
+      throw new CliError(
+        `--field is gone: \`yt field\` manages the values of any field. ` +
+          `Try \`yt field ${argv[0]} ${argv[1] ?? '<project>'} ${named}\`.`,
+      )
+    }
     return subcommand(argv.slice(1))
   }
 }
@@ -424,6 +479,7 @@ const boardCommands = { ls: boardLs, new: boardNew, add: boardEdit('add'), rm: b
 
 export const state = valueCommands('state', 'State')
 export const type = valueCommands('type', 'Type')
+export const field = valueCommands('field', null)
 
 export async function board(argv) {
   const run = boardCommands[argv[0]]

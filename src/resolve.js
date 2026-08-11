@@ -20,7 +20,7 @@ const BUNDLE_PATHS = { OwnedBundle: 'ownedField' }
 export async function fieldBundle(api, shortName, fieldName) {
   const id = await projectId(api, shortName)
   const fields = await api.collect(`/api/admin/projects/${id}/customFields`, {
-    query: { fields: 'field(id,name),bundle($type,id,values(id,name,ordinal,archived,isResolved))' },
+    query: { fields: 'field(id,name),bundle($type,id,values(id,name,ordinal,archived,isResolved,description))' },
   })
   const found = fields.find((candidate) => candidate.field?.name === fieldName)
   if (!found?.bundle) {

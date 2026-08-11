@@ -94,6 +94,8 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       { id: 't-2', name: 'Task', ordinal: 1 },
       { id: 't-3', name: 'Epic', ordinal: 2, archived: true },
     ],
+    versions: [],
+    subsystems: [],
     agiles: [],
     sprints: {},
     projects: [
@@ -265,8 +267,17 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
 
     const stateField = () => ({ field: { id: 'f-1', name: 'State' }, bundle: { $type: 'StateBundle', id: 'b-1', values: state.states } })
     const typeField = () => ({ field: { id: 'f-2', name: 'Type' }, bundle: { $type: 'EnumBundle', id: 'b-2', values: state.types } })
+    const versionField = () => ({
+      field: { id: 'f-4', name: 'Fix versions' },
+      bundle: { $type: 'VersionBundle', id: 'b-3', values: state.versions },
+    })
+    // An OwnedBundle, the one bundle type whose url segment is not its `$type`.
+    const subsystemField = () => ({
+      field: { id: 'f-5', name: 'Subsystem' },
+      bundle: { $type: 'OwnedBundle', id: 'b-4', values: state.subsystems },
+    })
     const projectFields = {
-      '0-0': () => [...state.extraFields, stateField(), typeField()],
+      '0-0': () => [...state.extraFields, stateField(), typeField(), versionField(), subsystemField()],
       '0-1': () => [typeField()],
     }
 
@@ -298,20 +309,28 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
     }
 
     // A bundle belongs to every project whose field instance points at it.
-    if (path === '/api/admin/customFieldSettings/customFields/f-1') {
-      return json(response, 200, { instances: [{ project: { shortName: 'DEMO' }, bundle: { id: 'b-1' } }] })
+    const instances = {
+      'f-1': [{ project: { shortName: 'DEMO' }, bundle: { id: 'b-1' } }],
+      'f-2': [
+        { project: { shortName: 'DEMO' }, bundle: { id: 'b-2' } },
+        { project: { shortName: 'OPS' }, bundle: { id: 'b-2' } },
+      ],
+      'f-4': [{ project: { shortName: 'DEMO' }, bundle: { id: 'b-3' } }],
+      'f-5': [{ project: { shortName: 'DEMO' }, bundle: { id: 'b-4' } }],
     }
-    if (path === '/api/admin/customFieldSettings/customFields/f-2') {
-      return json(response, 200, {
-        instances: [
-          { project: { shortName: 'DEMO' }, bundle: { id: 'b-2' } },
-          { project: { shortName: 'OPS' }, bundle: { id: 'b-2' } },
-        ],
-      })
+    const instanceMatch = path.match(/^\/api\/admin\/customFieldSettings\/customFields\/([^/]+)$/)
+    if (instanceMatch) {
+      const found = instances[instanceMatch[1]]
+      if (!found) return json(response, 404, { error: 'Not Found' })
+      return json(response, 200, { instances: found })
     }
 
-    const bundles = { 'b-1': state.states, 'b-2': state.types }
+    const bundles = { 'b-1': state.states, 'b-2': state.types, 'b-3': state.versions, 'b-4': state.subsystems }
     const valueMatch = path.match(/^\/api\/admin\/customFieldSettings\/bundles\/\w+\/([^/]+)\/values(?:\/([^/]+))?$/)
+    if (valueMatch && request.method === 'GET') {
+      const list = bundles[valueMatch[1]]
+      return list ? json(response, 200, paged(list)) : json(response, 404, { error: 'Not Found' })
+    }
     if (valueMatch && request.method === 'POST') {
       const [, bundleId, valueId] = valueMatch
       const list = bundles[bundleId]

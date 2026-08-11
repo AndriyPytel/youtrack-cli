@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { ls, view, comment, create, edit, attach, cmd } from './commands/issues.js'
 import { art } from './commands/art.js'
-import { state, type, board, sprint } from './commands/pipeline.js'
+import { state, type, field, board, sprint } from './commands/pipeline.js'
 import { project, org, user } from './commands/admin.js'
 import { login, logout } from './commands/auth.js'
 import { print } from './render.js'
@@ -30,7 +30,9 @@ const HELP = `yt — a thin YouTrack CLI
   yt state edit <project> <name> [--rename X] [--resolved|--no-resolved] [--archived|--no-archived]
   yt state order <project> "Open,In Progress,Fixed"
   yt type ls|add|edit|order <project> ...      the same, for issue types
-    Both take --field NAME for instances that call the field something else.
+  yt field ls|add|edit|order <project> <field> ...   the values of any field
+    yt field add <project> <field> <name> [--description X] [--after "Other"]
+    A version field also takes --release-date 2026-09-01 and --released|--no-released.
   yt project new <shortName> <name> [-d desc] [--leader login] [--org name]
   yt project team <shortName>                  the project team, one login per line
   yt project assign <shortName> <login...>     add users to the project team
@@ -56,6 +58,7 @@ const commands = {
   sprint,
   state,
   type,
+  field,
   project,
   org,
   user,

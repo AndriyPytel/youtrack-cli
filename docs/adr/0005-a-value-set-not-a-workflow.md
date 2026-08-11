@@ -70,3 +70,23 @@ projects, so `yt type add DEMO …` may land in projects nobody named. The comma
 performs the write and prints which projects share the set. Gating it behind a
 confirmation flag would cost an agent a failed call and a retry on the common
 path, to prevent an additive, visible change.
+
+## Addendum — 2026-08-11: a third name, and no `--field`
+
+The decision above made the field name "a **default in code**, overridable with
+`--field`". Measurement afterwards showed the override already reached every
+value-set field — `Subsystem`, `Fix versions`, `Fixed in build` — so the flag was
+not a fallback for an oddly named `State`, it was the general command wearing a
+disguise.
+
+`yt field ls|add|edit|order <project> <field> …` is that command under its own
+name, with the field as a positional. `--field` is removed: one job, one way to
+ask for it. `yt state` and `yt type` stay as fixed-field aliases, because
+onboarding scripts call them and the short name costs nothing. A rejection of
+`--field` names `yt field` rather than letting `parseArgs` answer "Unknown
+option", since that is where a stale habit gets corrected.
+
+Value attributes follow the same measurement: `description` sits on the shared
+bundle-element ancestor and is taken by any field, while `released` and
+`releaseDate` exist on version values alone and are refused elsewhere — the way
+`--resolved` is already refused outside `State`.

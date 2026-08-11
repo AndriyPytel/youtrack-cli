@@ -628,6 +628,19 @@ test('a board with sprints switched off is refused, not answered with a silent n
   board.sprintsSettings.disableSprints = false
 })
 
+test('boards with no sync field share their sprints with nobody, and nothing is claimed about them', async () => {
+  // The stock setup: every board keeps its own sprints, and none of them names a sync field.
+  for (const board of server.state.agiles) board.sprintsSettings.sprintSyncField = null
+
+  const created = await yt(['sprint', 'new', 'Sprint', 'solo'])
+  assert.equal(created.code, 0)
+  assert.ok(!created.out.includes('also on'), 'a field that is not there is shared with nobody')
+
+  const elsewhere = await yt(['sprint', 'ls', 'Everything', '--all'])
+  assert.ok(!elsewhere.out.includes('solo'), 'and the sprint really is on that board alone')
+  for (const board of server.state.agiles) board.sprintsSettings.sprintSyncField = { id: 'f-3' }
+})
+
 test('yt sprint on an unknown board exits 2', async () => {
   const { code, err } = await yt(['sprint', 'ls', 'Nowhere'])
   assert.equal(code, 2)

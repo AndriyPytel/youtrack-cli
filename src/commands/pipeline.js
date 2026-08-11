@@ -376,11 +376,15 @@ async function sprintNew(argv) {
   })
   if (flags.json) return printJson(created)
 
+  // Sprints are shared only through a sync field. Without one they are the board's
+  // own — and grouping boards by a field none of them has would claim the opposite.
   const field = board.sprintsSettings?.sprintSyncField?.id
-  const also = boards
-    .filter((other) => other.id !== board.id && other.sprintsSettings?.sprintSyncField?.id === field)
-    .map((other) => other.name)
-    .filter(Boolean)
+  const also = !field
+    ? []
+    : boards
+        .filter((other) => other.id !== board.id && other.sprintsSettings?.sprintSyncField?.id === field)
+        .map((other) => other.name)
+        .filter(Boolean)
   print(
     `${created.name ?? wanted} created on "${name}"` +
       (schedule(created) ? ` — ${schedule(created)}` : '') +

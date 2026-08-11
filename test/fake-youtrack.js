@@ -365,7 +365,8 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       const [, boardId, sprintId] = sprintMatch
       const board = state.agiles.find((candidate) => candidate.id === boardId)
       if (!board) return json(response, 404, { error: 'Not Found' })
-      const shared = (state.sprints[board.sprintsSettings.sprintSyncField.id] ??= [])
+      // No sync field means the sprints are the board's own — that is the stock setup.
+      const shared = (state.sprints[board.sprintsSettings.sprintSyncField?.id ?? board.id] ??= [])
       if (request.method === 'GET') return json(response, 200, paged(shared))
       if (!sprintId) {
         const added = {

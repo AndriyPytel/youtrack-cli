@@ -139,12 +139,16 @@ alone, so it feeds straight back in — `yt cmd DEMO-42 "add Board Delivery
 $(yt sprint current Delivery)"` — and exits `2` when the last sprint has been
 closed and no new one opened.
 
-Sprints hang off a field the boards share, so a sprint created through one board
-appears on every board that shares it, with the same schedule; `yt sprint new`
-names those boards instead of leaving the reach unsaid, and refuses a name that
-is already taken rather than creating a second sprint with it. A board with
-sprints switched off answers the API with one permanent active sprint — `yt`
-refuses it with exit `3` instead of passing that fiction on.
+**A sprint belongs to its board, not to a project.** A board covering several
+projects has one sprint across all of them; two boards over the same project have
+two unrelated sprint lists, even where the names match. The one exception is a
+board configured to take its sprints from a **sync field** — there the sprints
+mirror that field's values and every board on the same field shows them, so
+`yt sprint new` names those boards instead of leaving the reach unsaid. Stock
+boards have no sync field and it says nothing. A name already on the board is
+refused rather than opened twice, and a board with sprints switched off answers
+the API with one permanent active sprint — `yt` refuses it with exit `3` instead
+of passing that fiction on.
 
 `yt board add|rm` names the board, never an id — `yt board ls` prints no id to
 copy. Board names are not unique in YouTrack, so a name matching several boards

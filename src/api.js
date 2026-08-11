@@ -39,19 +39,18 @@ export function createApi({ url, token, refresh }) {
       headers['Content-Type'] = 'application/json'
       payload = JSON.stringify(body)
     }
-    return fetch(`${url}${path}${buildQuery(query)}`, { method, headers, body: payload })
+    // An attachment's `url` comes back from the server and may already be absolute.
+    const target = /^https?:\/\//.test(path) ? path : `${url}${path}`
+    return fetch(`${target}${buildQuery(query)}`, { method, headers, body: payload })
   }
 
-  async function request(path, options = {}) {
-    let bearer = await token()
+  async function fetchOnce(path, options) {
+    const bearer = await token()
     let response = await send(path, { ...options, bearer })
 
     if (response.status === 401 && refresh) {
       const renewed = await refresh()
-      if (renewed) {
-        bearer = renewed
-        response = await send(path, { ...options, bearer })
-      }
+      if (renewed) response = await send(path, { ...options, bearer: renewed })
     }
 
     if (response.status === 401) {
@@ -67,9 +66,19 @@ export function createApi({ url, token, refresh }) {
     if (!response.ok) {
       throw new CliError(`YouTrack ${response.status}: ${await describe(response)}`, EXIT.USAGE)
     }
+    return response
+  }
 
+  async function request(path, options = {}) {
+    const response = await fetchOnce(path, options)
     const text = await response.text()
     return text ? JSON.parse(text) : null
+  }
+
+  /** File content, which is the one response that is not JSON. */
+  async function bytes(path, options = {}) {
+    const response = await fetchOnce(path, options)
+    return Buffer.from(await response.arrayBuffer())
   }
 
   /**
@@ -104,5 +113,5 @@ export function createApi({ url, token, refresh }) {
     return items
   }
 
-  return { url, request, collect }
+  return { url, request, bytes, collect }
 }

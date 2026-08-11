@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, statSync } from 'node:fs'
 import { basename } from 'node:path'
 import { openSession } from '../session.js'
 import { parse, jsonFlag, fieldsFlag, fileFlag, optionalText } from '../args.js'
@@ -163,8 +163,9 @@ export async function edit(argv) {
 }
 
 export async function attach(argv) {
-  const { values, positionals } = parse(argv, jsonFlag)
+  const { values, positionals } = parse(argv, { ...jsonFlag, download: { type: 'boolean' } })
   const [id, ...files] = positionals
+  if (values.download) return download(id, files, values.json)
   if (!id || files.length === 0) throw new CliError('Usage: yt attach <id> <file...>')
 
   for (const file of files) {
@@ -191,6 +192,38 @@ export async function attach(argv) {
   const attachments = uploaded.flat()
   if (values.json) return printJson(attachments)
   for (const attachment of attachments) print(`${id} attached ${attachment.name ?? ''}`)
+}
+
+/** The other half of an attachment: reading it back out of YouTrack into the current directory. */
+async function download(id, names, json) {
+  if (!id || names.length > 1) throw new CliError('Usage: yt attach --download <id> [name]')
+
+  const { api } = await openSession()
+  const attachments = await api.collect(`/api/issues/${id}/attachments`, {
+    query: { fields: 'id,name,size,url' },
+    notFound: `No such issue: ${id}`,
+  })
+  if (attachments.length === 0) throw new CliError(`${id} has no attachments.`, EXIT.NOT_FOUND)
+
+  const [name] = names
+  const wanted = name ? attachments.filter((attachment) => attachment.name === name) : attachments
+  if (wanted.length === 0) {
+    throw new CliError(
+      `${id} has no attachment "${name}". It has: ${attachments.map((a) => a.name).join(', ')}.`,
+      EXIT.NOT_FOUND,
+    )
+  }
+
+  const saved = []
+  for (const attachment of wanted) {
+    // The name is YouTrack's, not ours — a path in it would write outside the current directory.
+    const file = basename(attachment.name)
+    writeFileSync(file, await api.bytes(attachment.url))
+    saved.push({ ...attachment, file })
+  }
+
+  if (json) return printJson(saved)
+  for (const attachment of saved) print(attachment.file)
 }
 
 const stripMarkup = (text = '') =>

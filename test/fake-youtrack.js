@@ -20,6 +20,15 @@ const ISSUES = {
   },
 }
 
+/** The one part of a `multipart/form-data` body, as the upload path sends it. */
+function multipart(raw, contentType) {
+  const boundary = `--${/boundary=(.+)$/.exec(contentType)?.[1]}`
+  const part = raw.subarray(raw.indexOf(boundary) + boundary.length, raw.lastIndexOf(boundary))
+  const headerEnd = part.indexOf('\r\n\r\n')
+  const name = /filename="([^"]*)"/.exec(part.subarray(0, headerEnd).toString())?.[1]
+  return { name, content: part.subarray(headerEnd + 4, part.length - 2) }
+}
+
 const json = (response, status, body) => {
   response.writeHead(status, { 'Content-Type': 'application/json' })
   response.end(JSON.stringify(body))
@@ -45,6 +54,8 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
   const state = {
     issues: structuredClone(ISSUES),
     comments: { 'DEMO-1': [{ id: '1-1', text: 'first', created: 1_700_000_000_000, author: { login: 'root' } }] },
+    attachments: {},
+    files: {},
     articles: {
       'DEMO-A-1': {
         id: '3-1',
@@ -205,9 +216,29 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
         ;(state.comments[id] ??= []).push(comment)
         return json(response, 200, comment)
       }
-      if (sub === 'attachments' && request.method === 'POST') {
-        return json(response, 200, [{ id: 'a-1', name: 'uploaded', size: body.length }])
+      if (sub === 'attachments' && request.method === 'GET') {
+        return json(response, 200, paged(state.attachments[id] || []))
       }
+      if (sub === 'attachments' && request.method === 'POST') {
+        const part = multipart(body, request.headers['content-type'] || '')
+        const attachment = {
+          id: `a-${(state.counter += 1)}`,
+          name: part.name,
+          size: part.content.length,
+          url: `/api/files/a-${state.counter}?sign=signed`,
+        }
+        state.files[attachment.id] = part.content
+        ;(state.attachments[id] ??= []).push(attachment)
+        return json(response, 200, [attachment])
+      }
+    }
+
+    const fileMatch = path.match(/^\/api\/files\/([^/]+)$/)
+    if (fileMatch) {
+      const content = state.files[fileMatch[1]]
+      if (!content) return json(response, 404, { error: 'Not Found' })
+      response.writeHead(200, { 'Content-Type': 'application/octet-stream' })
+      return response.end(content)
     }
 
     if (path === '/api/commands/assist') {

@@ -52,7 +52,14 @@ yt new <project> <summary> [-d text | -f file]     -d and -f omitted: read stdin
 yt edit <id> [-s summary] [-d text | -f file]      summary and/or description
 yt comment <id> <text>
 yt attach <id> <file...>
+yt attach --download <id> [name]    save them back into the current directory
 ```
+
+`yt attach --download` closes the loop the upload half leaves open: an agent in a
+later session can read what an earlier one attached. Without a name it saves
+every attachment of the issue and prints the file names; with one it saves that
+attachment alone. An issue with nothing attached, or a name that is not there,
+exits `2` rather than writing nothing and claiming success.
 
 `-d`, `-f` and stdin are three spellings of the same argument, so a multi-line
 body never has to survive shell quoting:

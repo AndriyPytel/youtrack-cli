@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -24,9 +24,10 @@ after(async () => {
 })
 
 /** Async on purpose: the fake server shares this process, so spawnSync would deadlock. */
-function yt(args, { token = 'test-token', input = '' } = {}) {
+function yt(args, { token = 'test-token', input = '', cwd } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [bin, ...args], {
+      cwd,
       env: { ...process.env, YT_URL: server.url, YT_TOKEN: token, YT_CONFIG_DIR: configDir },
     })
     let out = ''
@@ -139,6 +140,51 @@ test('yt attach uploads each file', async () => {
   const { code, out } = await yt(['attach', 'DEMO-1', file])
   assert.equal(code, 0)
   assert.match(out, /DEMO-1 attached/)
+})
+
+test('yt attach --download writes every attachment of the issue into the current directory', async () => {
+  const source = join(configDir, 'report.bin')
+  const bytes = Buffer.from([0, 1, 2, 250, 255, 10, 13])
+  writeFileSync(source, bytes)
+  await yt(['attach', 'DEMO-4', source])
+
+  const into = mkdtempSync(join(tmpdir(), 'yt-download-'))
+  const { code, out } = await yt(['attach', '--download', 'DEMO-4'], { cwd: into })
+  assert.equal(code, 0)
+  assert.equal(out, 'report.bin\n')
+  assert.deepEqual(readFileSync(join(into, 'report.bin')), bytes)
+  rmSync(into, { recursive: true, force: true })
+})
+
+test('yt attach --download <name> takes exactly one attachment', async () => {
+  const first = join(configDir, 'one.txt')
+  const second = join(configDir, 'two.txt')
+  writeFileSync(first, 'one')
+  writeFileSync(second, 'two')
+  await yt(['attach', 'DEMO-1', first, second])
+
+  const into = mkdtempSync(join(tmpdir(), 'yt-download-'))
+  const { code, out } = await yt(['attach', '--download', 'DEMO-1', 'two.txt'], { cwd: into })
+  assert.equal(code, 0)
+  assert.equal(out, 'two.txt\n')
+  assert.equal(readFileSync(join(into, 'two.txt'), 'utf8'), 'two')
+  assert.equal(existsSync(join(into, 'one.txt')), false)
+  rmSync(into, { recursive: true, force: true })
+})
+
+test('yt attach --download says so when there is nothing to download', async () => {
+  const { out: fresh } = await yt(['new', 'DEMO', 'Nothing attached', '-d', 'x'])
+  const empty = await yt(['attach', '--download', fresh.trim()])
+  assert.equal(empty.code, 2)
+  assert.match(empty.err, /has no attachments/)
+
+  const missingName = await yt(['attach', '--download', 'DEMO-1', 'nope.txt'])
+  assert.equal(missingName.code, 2)
+  assert.match(missingName.err, /DEMO-1 has no attachment "nope.txt"/)
+
+  const noIssue = await yt(['attach', '--download', 'DEMO-999'])
+  assert.equal(noIssue.code, 2)
+  assert.equal(noIssue.err, 'No such issue: DEMO-999\n')
 })
 
 test('yt cmd applies a command to several issues in one request', async () => {

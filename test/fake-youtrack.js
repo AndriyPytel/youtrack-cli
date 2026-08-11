@@ -95,6 +95,7 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
       { id: 't-3', name: 'Epic', ordinal: 2, archived: true },
     ],
     agiles: [],
+    sprints: {},
     projects: [
       { id: '0-0', shortName: 'DEMO' },
       { id: '0-1', shortName: 'OPS' },
@@ -348,9 +349,39 @@ export async function startFakeYouTrack({ token = 'test-token', accessTokens = [
         ...body,
         columnSettings: { ...body.columnSettings, columns },
         projects: (body.projects || []).map(named),
+        // Every board on this instance syncs sprints off the same field, as a stock instance does.
+        sprintsSettings: { disableSprints: false, sprintSyncField: { id: 'f-3' } },
       }
       state.agiles.push(board)
       return json(response, 200, board)
+    }
+
+    /**
+     * Sprints hang off a shared field, so a sprint created through one board is
+     * a sprint on every board that syncs off the same one — as on a real instance.
+     */
+    const sprintMatch = path.match(/^\/api\/agiles\/([^/]+)\/sprints(?:\/([^/]+))?$/)
+    if (sprintMatch) {
+      const [, boardId, sprintId] = sprintMatch
+      const board = state.agiles.find((candidate) => candidate.id === boardId)
+      if (!board) return json(response, 404, { error: 'Not Found' })
+      const shared = (state.sprints[board.sprintsSettings.sprintSyncField.id] ??= [])
+      if (request.method === 'GET') return json(response, 200, paged(shared))
+      if (!sprintId) {
+        const added = {
+          id: `sp-${(state.counter += 1)}`,
+          archived: false,
+          start: 1_800_000_000_000,
+          finish: 1_801_209_600_000,
+          ...body,
+        }
+        shared.push(added)
+        return json(response, 200, added)
+      }
+      const sprint = shared.find((candidate) => candidate.id === sprintId)
+      if (!sprint) return json(response, 404, { error: 'Not Found' })
+      Object.assign(sprint, body)
+      return json(response, 200, sprint)
     }
 
     const agileMatch = path.match(/^\/api\/agiles\/([^/]+)$/)

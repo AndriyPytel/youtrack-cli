@@ -126,7 +126,25 @@ yt board ls
 yt board new <project> <name> [--columns "A,B,C"]
 yt board add <project...> <board>       put projects on a board that already exists
 yt board rm <project...> <board>        take them off again
+yt sprint ls <board> [--all]            the board's sprints; --all lists the closed ones too
+yt sprint new <board> <name>            open a sprint
+yt sprint close <board>                 archive the current one
+yt sprint current <board>               the name of the current sprint, and nothing else
 ```
+
+The **current sprint is the last open one**, not the one today's date falls into:
+a sprint is closed by hand whenever the work is done, so its dates are decoration
+and a schedule-based answer would be a guess. `yt sprint current` prints the name
+alone, so it feeds straight back in — `yt cmd DEMO-42 "add Board Delivery
+$(yt sprint current Delivery)"` — and exits `2` when the last sprint has been
+closed and no new one opened.
+
+Sprints hang off a field the boards share, so a sprint created through one board
+appears on every board that shares it, with the same schedule; `yt sprint new`
+names those boards instead of leaving the reach unsaid, and refuses a name that
+is already taken rather than creating a second sprint with it. A board with
+sprints switched off answers the API with one permanent active sprint — `yt`
+refuses it with exit `3` instead of passing that fiction on.
 
 `yt board add|rm` names the board, never an id — `yt board ls` prints no id to
 copy. Board names are not unique in YouTrack, so a name matching several boards

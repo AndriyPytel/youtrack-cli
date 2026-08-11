@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { ls, view, comment, create, edit, attach, cmd } from './commands/issues.js'
 import { art } from './commands/art.js'
-import { state, type, board } from './commands/pipeline.js'
+import { state, type, board, sprint } from './commands/pipeline.js'
 import { project, org, user } from './commands/admin.js'
 import { login, logout } from './commands/auth.js'
 import { print } from './render.js'
@@ -18,10 +18,13 @@ const HELP = `yt — a thin YouTrack CLI
   yt cmd <id...> "<command>" [--as user] [--dry-run]    every other mutation
   yt comment <id> <text>
   yt attach <id> <file...>
+  yt attach --download <id> [name]            save attachments into the current directory
   yt art ls|view|new|edit                     knowledge base, listed as a tree
     yt art ls [--project P] [--grep text]     --grep filters titles client-side
   yt board ls|new <project> <name> [--columns "A,B,C"]
     yt board add|rm <project...> <board>      edit an existing board's project list
+  yt sprint ls <board> [--all]                a board's sprints; --all shows closed ones
+  yt sprint new|close|current <board> [name]  the current sprint is the last open one
   yt state ls <project> [--all]               State values; --all shows archived too
   yt state add <project> <name> [--resolved] [--archived] [--after "Other"]
   yt state edit <project> <name> [--rename X] [--resolved|--no-resolved] [--archived|--no-archived]
@@ -50,6 +53,7 @@ const commands = {
   cmd,
   art,
   board,
+  sprint,
   state,
   type,
   project,

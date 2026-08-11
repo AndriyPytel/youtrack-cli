@@ -78,6 +78,19 @@ carries Markdown content.
 An agile board: a Project plus a column layout derived from one custom field's
 values.
 
+## Sprint
+
+A named, dated slice of a Board's work. Sprints belong to a field the Boards
+share, so a Sprint opened through one Board exists on every Board that shares
+that field. A Sprint is closed by hand — archived — rather than by its dates, so
+the **current** Sprint is the last one not yet archived.
+
+## Attachment
+
+A file stored on an Issue, addressed by its name. Uploaded and read back through
+the Issue, never through a local directory: the Issue is where it survives a
+machine, a session and a checkout.
+
 ## Milestone
 
 A value of the `Fix versions` custom field. There is no separate milestone

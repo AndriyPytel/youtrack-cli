@@ -254,6 +254,22 @@ async function warnColumns(api, board, shortName) {
   }
 }
 
+/** Board names are not unique in YouTrack, and `yt board ls` prints no id to copy. */
+async function boardByName(api, name, fields) {
+  const boards = await api.collect('/api/agiles', { query: { fields } })
+  const matches = boards.filter((board) => board.name === name)
+  if (matches.length === 0) throw new CliError(`No such board: ${name}`, EXIT.NOT_FOUND)
+  if (matches.length > 1) {
+    throw new CliError(
+      `${matches.length} boards are named "${name}":\n` +
+        matches.map((board) => `  projects: ${(board.projects || []).map((p) => p.shortName).join(', ')}`).join('\n') +
+        '\nRename one of them so the name points at a single board.',
+      EXIT.REJECTED,
+    )
+  }
+  return { board: matches[0], boards }
+}
+
 /** `add` and `rm` are one read-modify-write of the board's project list. */
 function boardEdit(mode) {
   return async function run(argv) {
@@ -263,23 +279,11 @@ function boardEdit(mode) {
     if (shortNames.length === 0) throw new CliError(`Usage: yt board ${mode} <project...> <board>`)
 
     const { api } = await openSession()
-    const boards = await api.collect('/api/agiles', {
-      query: { fields: 'id,name,projects(id,shortName),columnSettings(columns(fieldValues(name)))' },
-    })
-
-    // Board names are not unique in YouTrack, and `yt board ls` prints no id to copy.
-    const matches = boards.filter((board) => board.name === name)
-    if (matches.length === 0) throw new CliError(`No such board: ${name}`, EXIT.NOT_FOUND)
-    if (matches.length > 1) {
-      throw new CliError(
-        `${matches.length} boards are named "${name}":\n` +
-          matches.map((board) => `  projects: ${(board.projects || []).map((p) => p.shortName).join(', ')}`).join('\n') +
-          '\nRename one of them so the name points at a single board.',
-        EXIT.REJECTED,
-      )
-    }
-
-    const board = matches[0]
+    const { board } = await boardByName(
+      api,
+      name,
+      'id,name,projects(id,shortName),columnSettings(columns(fieldValues(name)))',
+    )
     const current = board.projects || []
     const wanted = []
     for (const shortName of shortNames) wanted.push({ shortName, id: await projectId(api, shortName) })
@@ -308,6 +312,108 @@ function boardEdit(mode) {
     const projects = (updated.projects || after).map((project) => project.shortName).join(', ')
     print(`${subject} ${verb} "${board.name}" — projects: ${projects}`)
   }
+}
+
+const SPRINT_FIELDS = 'id,name,archived,start,finish'
+const BOARD_SPRINT_FIELDS = 'id,name,projects(shortName),sprintsSettings(disableSprints,sprintSyncField(id))'
+
+const day = (millis) => (millis ? new Date(millis).toISOString().slice(0, 10) : '')
+const schedule = (sprint) => [day(sprint.start), day(sprint.finish)].filter(Boolean).join(' → ')
+
+const sprintUsage = () => new CliError('Usage: yt sprint ls|new|close|current <board> [name]')
+
+/**
+ * The board a sprint command works on, its sprints, and every board alongside it.
+ * A board with sprints switched off still answers with one permanent active
+ * sprint, so the refusal is ours — passing that on would present a fiction as data.
+ */
+async function openSprints(argv, options = {}) {
+  const { values: flags, positionals } = parse(argv, { ...jsonFlag, ...options })
+  const [name, ...rest] = positionals
+  if (!name) throw sprintUsage()
+
+  const { api } = await openSession()
+  const { board, boards } = await boardByName(api, name, BOARD_SPRINT_FIELDS)
+  if (board.sprintsSettings?.disableSprints) {
+    throw new CliError(`Board "${name}" has sprints switched off; it has no sprints to manage.`, EXIT.REJECTED)
+  }
+  const sprints = await api.collect(`/api/agiles/${board.id}/sprints`, { query: { fields: SPRINT_FIELDS } })
+  return { api, flags, name, rest, board, boards, sprints }
+}
+
+/** The last unarchived one, not the one today falls into: a sprint is closed by hand, so its dates are decoration. */
+function currentSprint(sprints, name) {
+  const sprint = sprints.filter((sprint) => !sprint.archived).at(-1)
+  if (!sprint) throw new CliError(`Board ${name} has no open sprint; the last one is closed.`, EXIT.NOT_FOUND)
+  return sprint
+}
+
+async function sprintLs(argv) {
+  const { flags, sprints } = await openSprints(argv, { all: { type: 'boolean' } })
+  const shown = flags.all ? sprints : sprints.filter((sprint) => !sprint.archived)
+  if (flags.json) return printJson(shown)
+  print(
+    table(
+      shown.map((sprint) => [sprint.name ?? '', sprint.archived ? 'archived' : '', schedule(sprint)]),
+      listStyle,
+    ),
+  )
+}
+
+async function sprintNew(argv) {
+  const { api, flags, name, rest, board, boards, sprints } = await openSprints(argv)
+  const wanted = rest.join(' ')
+  if (!wanted) throw new CliError('Usage: yt sprint new <board> <name>')
+  // Sprints are shared through a field, so a duplicate would land on every board sharing it.
+  if (sprints.some((sprint) => sprint.name === wanted)) {
+    throw new CliError(`Board ${name} already has a sprint "${wanted}".`, EXIT.REJECTED)
+  }
+
+  const created = await api.request(`/api/agiles/${board.id}/sprints`, {
+    method: 'POST',
+    query: { fields: SPRINT_FIELDS },
+    body: { name: wanted },
+  })
+  if (flags.json) return printJson(created)
+
+  const field = board.sprintsSettings?.sprintSyncField?.id
+  const also = boards
+    .filter((other) => other.id !== board.id && other.sprintsSettings?.sprintSyncField?.id === field)
+    .map((other) => other.name)
+    .filter(Boolean)
+  print(
+    `${created.name ?? wanted} created on "${name}"` +
+      (schedule(created) ? ` — ${schedule(created)}` : '') +
+      (also.length > 0 ? `; also on ${also.join(', ')}` : ''),
+  )
+}
+
+async function sprintClose(argv) {
+  const { api, flags, name, board, sprints } = await openSprints(argv)
+  const sprint = currentSprint(sprints, name)
+  const archived = await api.request(`/api/agiles/${board.id}/sprints/${sprint.id}`, {
+    method: 'POST',
+    query: { fields: SPRINT_FIELDS },
+    body: { archived: true },
+  })
+  if (flags.json) return printJson(archived)
+  print(`${sprint.name} closed on "${name}" — \`yt sprint ls ${name} --all\` still lists it`)
+}
+
+async function sprintCurrent(argv) {
+  const { flags, name, sprints } = await openSprints(argv)
+  const sprint = currentSprint(sprints, name)
+  if (flags.json) return printJson(sprint)
+  // The name alone, so it feeds straight back into `yt cmd <id> "add Board <board> <sprint>"`.
+  print(sprint.name ?? '')
+}
+
+const sprintCommands = { ls: sprintLs, new: sprintNew, close: sprintClose, current: sprintCurrent }
+
+export async function sprint(argv) {
+  const run = sprintCommands[argv[0]]
+  if (!run) throw sprintUsage()
+  return run(argv.slice(1))
 }
 
 const boardCommands = { ls: boardLs, new: boardNew, add: boardEdit('add'), rm: boardEdit('rm') }

@@ -574,6 +574,66 @@ test('yt board add --json writes the raw response and no summary line', async ()
   await yt(['board', 'rm', 'OPS', 'Sprint'])
 })
 
+test('yt sprint new creates a sprint on every board that shares the field', async () => {
+  const created = await yt(['sprint', 'new', 'Everything', '12'])
+  assert.equal(created.code, 0)
+  assert.match(created.out, /^12 created on "Everything"/)
+
+  const here = JSON.parse((await yt(['sprint', 'ls', 'Everything', '--json'])).out)
+  const there = JSON.parse((await yt(['sprint', 'ls', 'Sprint', '--json'])).out)
+  const mine = here.find((sprint) => sprint.name === '12')
+  const shared = there.find((sprint) => sprint.name === '12')
+  assert.ok(shared, 'a sprint created on one board is on every board that shares the field')
+  assert.deepEqual([shared.start, shared.finish], [mine.start, mine.finish], 'and with the same schedule')
+})
+
+test('yt sprint current names the last unarchived sprint', async () => {
+  await yt(['sprint', 'new', 'Everything', '13'])
+  const { code, out } = await yt(['sprint', 'current', 'Everything'])
+  assert.equal(code, 0)
+  assert.equal(out, '13\n')
+})
+
+test('yt sprint close archives the current sprint and hands the board back to the one before it', async () => {
+  const closed = await yt(['sprint', 'close', 'Everything'])
+  assert.equal(closed.code, 0)
+  assert.match(closed.out, /^13 closed on "Everything"/)
+  assert.equal((await yt(['sprint', 'current', 'Everything'])).out, '12\n')
+})
+
+test('yt sprint ls leaves archived sprints out until --all, and marks them there', async () => {
+  const open = await yt(['sprint', 'ls', 'Everything'])
+  assert.equal(open.code, 0)
+  assert.match(open.out, /^12 /)
+  assert.ok(!open.out.includes('13'), 'an archived sprint is not an active one')
+
+  const all = await yt(['sprint', 'ls', 'Everything', '--all'])
+  assert.match(all.out, /13\s+archived/)
+})
+
+test('yt sprint current exits 2 once the last sprint is closed', async () => {
+  await yt(['sprint', 'close', 'Everything'])
+  const { code, out, err } = await yt(['sprint', 'current', 'Everything'])
+  assert.equal(code, 2)
+  assert.equal(out, '')
+  assert.match(err, /Everything has no open sprint/)
+})
+
+test('a board with sprints switched off is refused, not answered with a silent nothing', async () => {
+  const board = server.state.agiles.find((candidate) => candidate.name === 'Sprint')
+  board.sprintsSettings.disableSprints = true
+  const { code, err } = await yt(['sprint', 'ls', 'Sprint'])
+  assert.equal(code, 3)
+  assert.match(err, /"Sprint" has sprints switched off/)
+  board.sprintsSettings.disableSprints = false
+})
+
+test('yt sprint on an unknown board exits 2', async () => {
+  const { code, err } = await yt(['sprint', 'ls', 'Nowhere'])
+  assert.equal(code, 2)
+  assert.equal(err, 'No such board: Nowhere\n')
+})
+
 test('yt board add refuses an unknown board without mutating anything', async () => {
   const before = structuredClone(server.state.agiles)
   const { code, err } = await yt(['board', 'add', 'OPS', 'No Such Board'])
